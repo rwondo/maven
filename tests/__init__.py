@@ -1,0 +1,3 @@
+"""
+MAVEN test suite.
+"""
