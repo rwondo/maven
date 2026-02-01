@@ -147,38 +147,38 @@ CONFIDENCE: [High/Medium/Low in your assessment]"""
             self._generate_with_rate_limit(model_id, CONSISTENCY_PROMPT, f"consistency_checker_{i}")
             for i, model_id in enumerate(self.model_ids)
         ]
-        
+
         responses = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         model_responses = []
         consistency_checks = []
-        
+
         for i, (model_id, response) in enumerate(zip(self.model_ids, responses)):
             if isinstance(response, Exception):
                 response = f"Error: {response}"
-            
+
             model_responses.append(response)
-            
+
             # Parse verdict
             verdict = "QUESTIONABLE"
             if "VERDICT: RELIABLE" in str(response).upper():
                 verdict = "RELIABLE"
             elif "VERDICT: UNRELIABLE" in str(response).upper():
                 verdict = "UNRELIABLE"
-            
-            consistency_checks.append({
-                "model": model_id,
-                "verdict": verdict,
-                "response": str(response)[:300]
-            })
-            
-            self._trace.append(TraceStep(
-                iteration=1,
-                role="consistency_checker",
-                model=model_id,
-                content=str(response),
-            ))
-        
+
+            consistency_checks.append(
+                {"model": model_id, "verdict": verdict, "response": str(response)[:300]}
+            )
+
+            self._trace.append(
+                TraceStep(
+                    iteration=1,
+                    role="consistency_checker",
+                    model=model_id,
+                    content=str(response),
+                )
+            )
+
         return model_responses, consistency_checks
 
     async def _run_fact_check(self, query: str, answer: str) -> Dict[str, Any]:
@@ -198,18 +198,18 @@ FACTS_FAILED: [List any facts that couldn't be verified or were wrong]
 CONFIDENCE: [High/Medium/Low]"""
 
         response = await self._generate_with_rate_limit(
-            self.model_ids[0],
-            FACT_CHECK_PROMPT,
-            "fact_checker"
+            self.model_ids[0], FACT_CHECK_PROMPT, "fact_checker"
         )
-        
-        self._trace.append(TraceStep(
-            iteration=2,
-            role="fact_checker",
-            model=self.model_ids[0],
-            content=response,
-        ))
-        
+
+        self._trace.append(
+            TraceStep(
+                iteration=2,
+                role="fact_checker",
+                model=self.model_ids[0],
+                content=response,
+            )
+        )
+
         return {
             "model": self.model_ids[0],
             "response": response[:500],
@@ -237,18 +237,18 @@ CONFIDENCE: [High/Medium/Low]"""
 
         model_id = self.model_ids[1] if len(self.model_ids) > 1 else self.model_ids[0]
         response = await self._generate_with_rate_limit(
-            model_id,
-            CITATION_PROMPT,
-            "citation_checker"
+            model_id, CITATION_PROMPT, "citation_checker"
         )
-        
-        self._trace.append(TraceStep(
-            iteration=3,
-            role="citation_checker",
-            model=model_id,
-            content=response,
-        ))
-        
+
+        self._trace.append(
+            TraceStep(
+                iteration=3,
+                role="citation_checker",
+                model=model_id,
+                content=response,
+            )
+        )
+
         return {
             "model": model_id,
             "response": response[:500],
@@ -263,30 +263,36 @@ CONFIDENCE: [High/Medium/Low]"""
         """Calculate risk level and confidence score."""
         flags = []
         disagreements = []
-        
+
         # Check consistency across models
         verdicts = [c["verdict"] for c in consistency_checks]
         reliable_count = verdicts.count("RELIABLE")
         unreliable_count = verdicts.count("UNRELIABLE")
-        
+
         if unreliable_count > 0:
             flags.append(f"{unreliable_count}/{len(verdicts)} models flagged as UNRELIABLE")
-        
+
         if len(set(verdicts)) > 1:
             disagreements.append(f"Models disagree on reliability: {verdicts}")
-        
+
         # Check fact verification
-        if "FACTS_FAILED" in fact_response and "None" not in fact_response.split("FACTS_FAILED")[1][:100]:
+        if (
+            "FACTS_FAILED" in fact_response
+            and "None" not in fact_response.split("FACTS_FAILED")[1][:100]
+        ):
             flags.append("Fact verification failed for some claims")
-        
+
         # Check citations
-        if "SUSPICIOUS" in citation_response and "None" not in citation_response.split("SUSPICIOUS")[1][:100]:
+        if (
+            "SUSPICIOUS" in citation_response
+            and "None" not in citation_response.split("SUSPICIOUS")[1][:100]
+        ):
             flags.append("Suspicious or unsourced citations detected")
-        
+
         # Calculate scores
         consistency_score = (reliable_count / len(verdicts)) * 100
         confidence_score = consistency_score
-        
+
         # Determine risk level
         if unreliable_count >= 2 or len(flags) >= 2:
             risk_level = "CRITICAL"
@@ -296,7 +302,7 @@ CONFIDENCE: [High/Medium/Low]"""
             risk_level = "MEDIUM"
         else:
             risk_level = "LOW"
-        
+
         return risk_level, confidence_score, flags, disagreements
 
     async def detect(
@@ -317,33 +323,35 @@ CONFIDENCE: [High/Medium/Low]"""
         """
         trace_id = generate_trace_id()
         logger.info(f"Starting async hallucination detection {trace_id}")
-        
+
         self._trace = []
-        
+
         # Run all checks in parallel where possible
         consistency_task = self._run_consistency_checks(query, answer)
         fact_task = self._run_fact_check(query, answer)
         citation_task = self._run_citation_check(query, answer)
-        
+
         # Gather results
         (model_responses, consistency_checks), fact_check, citation_check = await asyncio.gather(
             consistency_task, fact_task, citation_task
         )
-        
+
         # Calculate risk
         risk_level, confidence_score, flags, disagreements = self._calculate_risk(
             consistency_checks,
             fact_check["response"],
             citation_check["response"],
         )
-        
+
         consistency_score = (
-            len([c for c in consistency_checks if c["verdict"] == "RELIABLE"]) 
+            len([c for c in consistency_checks if c["verdict"] == "RELIABLE"])
             / len(consistency_checks)
         ) * 100
-        
-        logger.info(f"Async detection complete: {risk_level} risk ({confidence_score:.1f}% confidence)")
-        
+
+        logger.info(
+            f"Async detection complete: {risk_level} risk ({confidence_score:.1f}% confidence)"
+        )
+
         return HallucinationReport(
             risk_level=risk_level,
             confidence_score=confidence_score,
@@ -363,7 +371,7 @@ CONFIDENCE: [High/Medium/Low]"""
                 "models": self.model_ids,
                 "async": True,
                 "completed_at": get_timestamp(),
-            }
+            },
         )
 
     async def detect_batch(
@@ -393,14 +401,14 @@ CONFIDENCE: [High/Medium/Low]"""
         semaphore = asyncio.Semaphore(max_concurrent)
         results: List[Optional[HallucinationReport]] = [None] * len(items)
         completed = 0
-        
+
         async def detect_with_limit(index: int, item: Dict[str, str]) -> None:
             nonlocal completed
             async with semaphore:
                 query = item.get("query", "")
                 answer = item.get("answer", "")
                 item_domain = item.get("domain", domain)
-                
+
                 try:
                     report = await self.detect(query, answer, item_domain)
                     results[index] = report
@@ -417,22 +425,19 @@ CONFIDENCE: [High/Medium/Low]"""
                         model_responses=[],
                         disagreements=[],
                         trace=[],
-                        metadata={"error": str(e), "query": query}
+                        metadata={"error": str(e), "query": query},
                     )
-                
+
                 completed += 1
                 if progress_callback:
                     progress_callback(completed, len(items))
-        
+
         # Create all tasks
-        tasks = [
-            detect_with_limit(i, item) 
-            for i, item in enumerate(items)
-        ]
-        
+        tasks = [detect_with_limit(i, item) for i, item in enumerate(items)]
+
         # Run all with concurrency control
         await asyncio.gather(*tasks)
-        
+
         return results
 
     async def is_hallucination(
@@ -455,7 +460,7 @@ CONFIDENCE: [High/Medium/Low]"""
         """
         if threshold is None:
             threshold = ["CRITICAL", "HIGH", "MEDIUM"]
-        
+
         report = await self.detect(query, answer, domain)
         return report.risk_level in threshold
 
