@@ -505,7 +505,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Contact
 
-- **Author**: rwondo
+- **Author**: Arber Ferra ([@rwondo](https://github.com/rwondo))
+- **Email**: ferraarber@gmail.com
 - **GitHub Issues**: [Report bugs or request features](https://github.com/rwondo/maven/issues)
 - **Discussions**: [Join the conversation](https://github.com/rwondo/maven/discussions)
 
