@@ -146,13 +146,85 @@ Environment Variables:
         version=f"maven {__version__}",
     )
 
+    # Hallucination detection mode (recommended)
+    parser.add_argument(
+        "-d", "--detect",
+        action="store_true",
+        help="Use hallucination detection mode (recommended). Requires --answer flag.",
+    )
+
+    parser.add_argument(
+        "-a", "--answer",
+        help="The AI-generated answer to verify for hallucinations (use with --detect).",
+    )
+
+    parser.add_argument(
+        "--domain",
+        choices=["medical", "legal", "financial"],
+        help="Domain context for specialized hallucination detection.",
+    )
+
     return parser
+
+
+def format_detection_result(report, verbose: bool = False) -> str:
+    """Format hallucination detection result for display."""
+    lines = []
+    lines.append("")
+    lines.append("=" * 60)
+    lines.append("HALLUCINATION DETECTION RESULT")
+    lines.append("=" * 60)
+    lines.append("")
+    lines.append(f"Risk Level: {report.risk_level}")
+    lines.append(f"Confidence: {report.confidence_score:.1f}%")
+    lines.append(f"Consistency: {report.consistency_score:.1f}%")
+
+    if report.flags:
+        lines.append("")
+        lines.append("Flags:")
+        for flag in report.flags:
+            lines.append(f"  - {flag}")
+
+    if report.disagreements:
+        lines.append("")
+        lines.append("Model Disagreements:")
+        for disagreement in report.disagreements:
+            lines.append(f"  - {disagreement}")
+
+    if verbose:
+        if report.fact_checks:
+            lines.append("")
+            lines.append("-" * 60)
+            lines.append("FACT CHECKS")
+            for check in report.fact_checks:
+                lines.append(f"  Model: {check.get('model', 'Unknown')}")
+                lines.append(f"  Tools Used: {check.get('tools_used', False)}")
+
+        if report.citation_checks:
+            lines.append("")
+            lines.append("-" * 60)
+            lines.append("CITATION CHECKS")
+            for check in report.citation_checks:
+                lines.append(f"  Model: {check.get('model', 'Unknown')}")
+
+    lines.append("")
+    
+    # Recommendation
+    if report.risk_level in ["CRITICAL", "HIGH"]:
+        lines.append("! RECOMMENDATION: Do NOT trust this answer. High risk of hallucination.")
+    elif report.risk_level == "MEDIUM":
+        lines.append("! RECOMMENDATION: Verify this answer independently before use.")
+    else:
+        lines.append("* RECOMMENDATION: Answer appears reliable, but always verify critical claims.")
+
+    lines.append("")
+    return "\n".join(lines)
 
 
 def load_config(config_path: str) -> dict:
     """Load configuration from JSON file."""
     try:
-        with open(config_path, "r") as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         print(f"Error: Config file not found: {config_path}", file=sys.stderr)
@@ -195,11 +267,47 @@ def main(argv: Optional[List[str]] = None) -> int:
     # Parse models
     models = parse_models(args.models)
 
-    if len(models) < 3:
-        print("Error: At least 3 models required for consensus", file=sys.stderr)
-        return 1
-
     try:
+        # Hallucination detection mode (recommended)
+        if args.detect:
+            if not args.answer:
+                print("Error: --answer is required with --detect mode", file=sys.stderr)
+                print("Usage: maven --detect --answer 'AI response' 'Your question'", file=sys.stderr)
+                return 1
+
+            if len(models) < 2:
+                print("Error: At least 2 models required for hallucination detection", file=sys.stderr)
+                return 1
+
+            from maven import HallucinationDetector
+
+            if not args.json:
+                print(f"\nDetecting hallucinations in answer to: {args.query}")
+                print("Running multi-model verification...")
+
+            detector = HallucinationDetector(models=models)
+            report = detector.detect(
+                query=args.query,
+                answer=args.answer,
+                domain=args.domain,
+            )
+
+            if args.json:
+                print(json.dumps(report.to_dict(), indent=2, default=str))
+            else:
+                print(format_detection_result(report, verbose=args.verbose))
+
+            # Return non-zero for high-risk detections
+            if report.risk_level in ["CRITICAL", "HIGH"]:
+                return 2  # Hallucination detected
+            return 0
+
+        # Legacy consensus mode (not recommended)
+        if len(models) < 3:
+            print("Error: At least 3 models required for consensus", file=sys.stderr)
+            print("Tip: Use --detect mode for hallucination detection (only needs 2 models)", file=sys.stderr)
+            return 1
+
         # Create orchestrator
         orchestrator = ConsensusOrchestrator(
             models=models,

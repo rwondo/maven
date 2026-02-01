@@ -63,11 +63,59 @@ class HallucinationReport:
         }
 
 
+# Domain-specific verification prompts for high-stakes domains
+DOMAIN_PROMPTS = {
+    "medical": {
+        "extra_checks": [
+            "Check for fabricated medical studies or clinical trials",
+            "Verify drug interactions and dosage information",
+            "Flag unverified treatment claims",
+            "Check for outdated medical guidelines",
+        ],
+        "risk_keywords": [
+            "according to a study", "research shows", "clinical trial",
+            "FDA approved", "treatment for", "cure for", "mg dosage"
+        ],
+    },
+    "legal": {
+        "extra_checks": [
+            "Verify case citations exist (e.g., 'Smith v. Jones')",
+            "Check statute references are valid",
+            "Flag jurisdictional misstatements",
+            "Verify legal precedent accuracy",
+        ],
+        "risk_keywords": [
+            "v.", "vs.", "court ruled", "statute", "precedent",
+            "legal requirement", "under the law", "regulation"
+        ],
+    },
+    "financial": {
+        "extra_checks": [
+            "Verify financial figures and statistics",
+            "Check regulatory compliance claims",
+            "Flag specific investment advice",
+            "Verify market data accuracy",
+        ],
+        "risk_keywords": [
+            "ROI", "return", "investment", "SEC", "regulation",
+            "market cap", "earnings", "dividend"
+        ],
+    },
+}
+
+
 class HallucinationDetector:
     """Multi-model hallucination detection system.
 
     Uses multiple models to verify a response and flag potential hallucinations.
     Particularly valuable for high-stakes domains like law and medicine.
+    
+    Features:
+        - Multi-model consistency checking
+        - Domain-specific verification (medical, legal, financial)
+        - Citation and fact verification
+        - Batch detection support
+        - Rate limiting built-in
     """
 
     def __init__(
@@ -75,6 +123,7 @@ class HallucinationDetector:
         models: List[str],
         config: Optional[Dict[str, Any]] = None,
         mcp_servers: Optional[List[Dict[str, Any]]] = None,
+        rate_limit_delay: float = 1.0,
     ):
         """Initialize hallucination detector.
 
@@ -86,6 +135,7 @@ class HallucinationDetector:
                 - name: Server name
                 - type: "stdio" or "http"
                 - Additional fields based on type (command, url, api_key, etc.)
+            rate_limit_delay: Delay in seconds between API calls (default: 1.0).
 
         Example:
             detector = HallucinationDetector(
@@ -107,6 +157,8 @@ class HallucinationDetector:
         self.config = merge_configs(DEFAULT_CONFIG, config)
         self._models: Dict[str, ModelInterface] = {}
         self._trace: List[TraceStep] = []
+        self._rate_limit_delay = rate_limit_delay
+        self._last_call_time: float = 0
 
         # Initialize MCP server registry
         self.mcp_registry = MCPServerRegistry()
@@ -119,6 +171,15 @@ class HallucinationDetector:
                     self.mcp_registry.register_server(server)
 
         logger.info(f"Initialized HallucinationDetector with {len(models)} models and {len(self.mcp_registry.servers)} MCP servers")
+
+    def _rate_limit(self) -> None:
+        """Apply rate limiting between API calls."""
+        import time
+        current_time = time.time()
+        elapsed = current_time - self._last_call_time
+        if elapsed < self._rate_limit_delay:
+            time.sleep(self._rate_limit_delay - elapsed)
+        self._last_call_time = time.time()
 
     def _get_model(self, model_id: str) -> ModelInterface:
         """Get or create model instance."""
@@ -133,6 +194,9 @@ class HallucinationDetector:
         role: str,
     ) -> str:
         """Generate response and execute any tool calls via MCP servers."""
+        # Apply rate limiting
+        self._rate_limit()
+        
         model = self._get_model(model_id)
 
         try:
@@ -443,6 +507,91 @@ CONFIDENCE: [High/Medium/Low]"""
             }
         )
 
+    def detect_batch(
+        self,
+        items: List[Dict[str, str]],
+        domain: Optional[str] = None,
+        progress_callback: Optional[callable] = None,
+    ) -> List[HallucinationReport]:
+        """Detect hallucinations in a batch of query-answer pairs.
+
+        Args:
+            items: List of dicts with 'query' and 'answer' keys.
+            domain: Optional domain context for all items.
+            progress_callback: Optional callback(current, total) for progress updates.
+
+        Returns:
+            List of HallucinationReport for each item.
+
+        Example:
+            reports = detector.detect_batch([
+                {"query": "What is aspirin?", "answer": "Aspirin is..."},
+                {"query": "Who invented it?", "answer": "Felix Hoffmann..."},
+            ])
+        """
+        results = []
+        total = len(items)
+
+        for i, item in enumerate(items):
+            query = item.get("query", "")
+            answer = item.get("answer", "")
+            item_domain = item.get("domain", domain)
+
+            try:
+                report = self.detect(query, answer, item_domain)
+                results.append(report)
+            except Exception as e:
+                logger.error(f"Error detecting item {i+1}/{total}: {e}")
+                # Create error report
+                results.append(HallucinationReport(
+                    risk_level="HIGH",
+                    confidence_score=0.0,
+                    flags=[f"Detection error: {str(e)}"],
+                    consistency_score=0.0,
+                    fact_checks=[],
+                    citation_checks=[],
+                    logic_checks=[],
+                    model_responses=[],
+                    disagreements=[],
+                    trace=[],
+                    metadata={"error": str(e), "query": query}
+                ))
+
+            if progress_callback:
+                progress_callback(i + 1, total)
+
+        return results
+
+    def is_hallucination(
+        self,
+        query: str,
+        answer: str,
+        domain: Optional[str] = None,
+        threshold: List[str] = None,
+    ) -> bool:
+        """Quick check if an answer is likely a hallucination.
+
+        Args:
+            query: The original question.
+            answer: The answer to check.
+            domain: Optional domain context.
+            threshold: Risk levels to flag as hallucinations.
+                       Default: ["CRITICAL", "HIGH", "MEDIUM"]
+
+        Returns:
+            True if likely a hallucination, False otherwise.
+
+        Example:
+            if detector.is_hallucination(query, answer):
+                print("Warning: This answer may contain hallucinations!")
+        """
+        if threshold is None:
+            threshold = ["CRITICAL", "HIGH", "MEDIUM"]
+
+        report = self.detect(query, answer, domain)
+        return report.risk_level in threshold
+
     def get_trace(self) -> List[TraceStep]:
         """Get the detection trace from the last run."""
         return self._trace.copy()
+

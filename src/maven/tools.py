@@ -49,22 +49,80 @@ class CalculatorTool(Tool):
         Returns:
             Result as a string
         """
+        import ast
+        import operator
+        import math
+        
         try:
-            # Sanitize input - only allow safe mathematical operations
-            allowed_chars = set("0123456789+-*/().sqrt pow abs ")
-            if not all(c in allowed_chars or c.isspace() for c in expression.lower()):
-                return f"Error: Expression contains unsafe characters"
-
-            # Replace common math functions
-            safe_expr = expression.replace("sqrt", "pow")
-            safe_expr = safe_expr.replace("^", "**")
-
-            # Evaluate
-            result = eval(safe_expr, {"__builtins__": {}}, {
-                "sqrt": lambda x: x ** 0.5,
-                "pow": pow,
-                "abs": abs
-            })
+            # Safe operators mapping
+            operators = {
+                ast.Add: operator.add,
+                ast.Sub: operator.sub,
+                ast.Mult: operator.mul,
+                ast.Div: operator.truediv,
+                ast.FloorDiv: operator.floordiv,
+                ast.Mod: operator.mod,
+                ast.Pow: operator.pow,
+                ast.USub: operator.neg,
+                ast.UAdd: operator.pos,
+            }
+            
+            # Safe functions mapping
+            safe_functions = {
+                'sqrt': math.sqrt,
+                'abs': abs,
+                'pow': pow,
+                'sin': math.sin,
+                'cos': math.cos,
+                'tan': math.tan,
+                'log': math.log,
+                'log10': math.log10,
+                'exp': math.exp,
+                'floor': math.floor,
+                'ceil': math.ceil,
+                'round': round,
+            }
+            
+            # Preprocess expression
+            safe_expr = expression.replace('^', '**')
+            
+            def _eval_node(node):
+                """Safely evaluate an AST node."""
+                if isinstance(node, ast.Constant):  # Python 3.8+
+                    return node.value
+                elif isinstance(node, ast.Num):  # Python 3.7 compat
+                    return node.n
+                elif isinstance(node, ast.BinOp):
+                    left = _eval_node(node.left)
+                    right = _eval_node(node.right)
+                    op = operators.get(type(node.op))
+                    if op is None:
+                        raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
+                    return op(left, right)
+                elif isinstance(node, ast.UnaryOp):
+                    operand = _eval_node(node.operand)
+                    op = operators.get(type(node.op))
+                    if op is None:
+                        raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
+                    return op(operand)
+                elif isinstance(node, ast.Call):
+                    func_name = node.func.id if isinstance(node.func, ast.Name) else None
+                    if func_name not in safe_functions:
+                        raise ValueError(f"Unsupported function: {func_name}")
+                    args = [_eval_node(arg) for arg in node.args]
+                    return safe_functions[func_name](*args)
+                elif isinstance(node, ast.Name):
+                    # Handle constants like pi, e
+                    if node.id == 'pi':
+                        return math.pi
+                    elif node.id == 'e':
+                        return math.e
+                    raise ValueError(f"Unknown variable: {node.id}")
+                else:
+                    raise ValueError(f"Unsupported expression type: {type(node).__name__}")
+            
+            tree = ast.parse(safe_expr, mode='eval')
+            result = _eval_node(tree.body)
 
             logger.info(f"Calculator: {expression} = {result}")
             return str(result)
