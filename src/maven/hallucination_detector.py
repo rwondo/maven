@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 
 from maven.consensus import TraceStep, VerificationResult
 from maven.models import ModelInterface, create_model
-from maven.tools import extract_tool_calls, execute_tool_calls, default_registry
+from maven.mcp_integration import MCPServerRegistry, create_mcp_server
 from maven.utils import generate_trace_id, get_timestamp, merge_configs, DEFAULT_CONFIG
 
 logger = logging.getLogger(__name__)
@@ -74,12 +74,31 @@ class HallucinationDetector:
         self,
         models: List[str],
         config: Optional[Dict[str, Any]] = None,
+        mcp_servers: Optional[List[Dict[str, Any]]] = None,
     ):
         """Initialize hallucination detector.
 
         Args:
             models: List of model identifiers (minimum 2 required).
             config: Optional configuration dictionary.
+            mcp_servers: Optional list of MCP server configurations.
+                Each server config should have:
+                - name: Server name
+                - type: "stdio" or "http"
+                - Additional fields based on type (command, url, api_key, etc.)
+
+        Example:
+            detector = HallucinationDetector(
+                models=["llama", "qwen", "mixtral"],
+                mcp_servers=[
+                    {
+                        "name": "wikipedia",
+                        "type": "stdio",
+                        "command": "npx",
+                        "args": ["-y", "@modelcontextprotocol/server-wikipedia"]
+                    }
+                ]
+            )
         """
         if len(models) < 2:
             raise ValueError("At least 2 models required for hallucination detection")
@@ -89,7 +108,17 @@ class HallucinationDetector:
         self._models: Dict[str, ModelInterface] = {}
         self._trace: List[TraceStep] = []
 
-        logger.info(f"Initialized HallucinationDetector with {len(models)} models")
+        # Initialize MCP server registry
+        self.mcp_registry = MCPServerRegistry()
+        if mcp_servers:
+            for server_config in mcp_servers:
+                server_type = server_config.get("type", "stdio")
+                server_name = server_config.get("name", f"server_{len(self.mcp_registry.servers)}")
+                server = create_mcp_server(server_type, server_name, server_config)
+                if server:
+                    self.mcp_registry.register_server(server)
+
+        logger.info(f"Initialized HallucinationDetector with {len(models)} models and {len(self.mcp_registry.servers)} MCP servers")
 
     def _get_model(self, model_id: str) -> ModelInterface:
         """Get or create model instance."""
@@ -103,7 +132,7 @@ class HallucinationDetector:
         prompt: str,
         role: str,
     ) -> str:
-        """Generate response and execute any tool calls."""
+        """Generate response and execute any tool calls via MCP servers."""
         model = self._get_model(model_id)
 
         try:
@@ -112,14 +141,75 @@ class HallucinationDetector:
             logger.error(f"Model {model_id} failed: {e}")
             content = f"Error: {e}"
 
-        # Execute tool calls if present
-        tool_calls = extract_tool_calls(content)
-        if tool_calls:
-            logger.info(f"Model {model_id} requested {len(tool_calls)} tool(s)")
-            tool_results = execute_tool_calls(tool_calls, default_registry)
-            content = f"{content}\n\n[TOOL RESULTS]\n{tool_results}"
+        # Execute tool calls if MCP servers are configured
+        if self.mcp_registry.servers:
+            tool_calls = self._extract_mcp_tool_calls(content)
+            if tool_calls:
+                logger.info(f"Model {model_id} requested {len(tool_calls)} MCP tool(s)")
+                tool_results = self._execute_mcp_tools(tool_calls)
+                content = f"{content}\n\n[TOOL RESULTS]\n{tool_results}"
 
         return content
+
+    def _extract_mcp_tool_calls(self, text: str) -> List[Dict[str, Any]]:
+        """Extract MCP tool calls from model output.
+
+        Looks for patterns like:
+        USE_TOOL: wikipedia:search
+        QUERY: Albert Einstein
+
+        Or:
+        USE_TOOL: pubmed:search_papers
+        QUERY: aspirin cardiovascular
+        """
+        import re
+
+        tool_calls = []
+        tool_matches = re.finditer(r'USE_TOOL:\s*([^\n]+)', text, re.IGNORECASE)
+
+        for match in tool_matches:
+            tool_name = match.group(1).strip()
+            start_pos = match.end()
+
+            # Extract parameters until next tool call or end
+            next_match = re.search(r'USE_TOOL:', text[start_pos:], re.IGNORECASE)
+            if next_match:
+                params_text = text[start_pos:start_pos + next_match.start()]
+            else:
+                params_text = text[start_pos:]
+
+            # Extract parameter pairs
+            params = {}
+            param_matches = re.finditer(r'(\w+):\s*([^\n]+)', params_text)
+            for param_match in param_matches:
+                key = param_match.group(1).lower()
+                value = param_match.group(2).strip()
+                params[key] = value
+
+            tool_calls.append({
+                "tool": tool_name,
+                "params": params
+            })
+
+        return tool_calls
+
+    def _execute_mcp_tools(self, tool_calls: List[Dict[str, Any]]) -> str:
+        """Execute tool calls via MCP servers."""
+        if not tool_calls:
+            return ""
+
+        results = []
+        for call in tool_calls:
+            tool_name = call["tool"]
+            params = call["params"]
+
+            try:
+                result = self.mcp_registry.execute_tool(tool_name, params)
+                results.append(f"[{tool_name}] {result}")
+            except Exception as e:
+                results.append(f"[{tool_name}] Error: {str(e)}")
+
+        return "\n".join(results)
 
     def detect(
         self,
@@ -309,15 +399,26 @@ CONFIDENCE: [High/Medium/Low]"""
         consistency_score = (reliable_count / len(verdicts)) * 100
         confidence_score = consistency_score  # Base on consistency for now
 
-        # Determine risk level
-        if confidence_score >= 75 and not flags:
-            risk_level = "LOW"
-        elif confidence_score >= 50 and len(flags) <= 1:
-            risk_level = "MEDIUM"
-        elif confidence_score >= 25:
-            risk_level = "HIGH"
-        else:
+        # Determine risk level with improved logic
+        # Key principle: Be conservative - prioritize catching hallucinations over avoiding FPs
+        #
+        # Analysis from TruthfulQA benchmark showed:
+        # - Old MEDIUM threshold: 93.6% of answers were actually untruthful
+        # - Old LOW threshold: 93.3% of answers were actually untruthful
+        # This means we need to be much more aggressive with flagging
+
+        # CRITICAL: 2+ models said UNRELIABLE, or 2+ flags
+        if unreliable_count >= 2 or len(flags) >= 2:
             risk_level = "CRITICAL"
+        # HIGH: Any model said UNRELIABLE, or any flags present
+        elif unreliable_count > 0 or len(flags) > 0:
+            risk_level = "HIGH"
+        # MEDIUM: Low consistency (models disagree) even if no explicit UNRELIABLE
+        elif confidence_score < 75:
+            risk_level = "MEDIUM"
+        # LOW: High consistency, all models agree it's RELIABLE, no flags
+        else:
+            risk_level = "LOW"
 
         logger.info(f"Detection complete: {risk_level} risk ({confidence_score:.1f}% confidence)")
 

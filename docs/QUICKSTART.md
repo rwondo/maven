@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get MAVEN running in 5 minutes.
+Get MAVEN running in 5 minutes to detect AI hallucinations.
 
 ## Installation
 
@@ -11,7 +11,7 @@ pip install maven-protocol
 Or install from source:
 
 ```bash
-git clone https://github.com/arberferra/maven.git
+git clone https://github.com/rwondo/maven.git
 cd maven
 pip install -e .
 ```
@@ -21,101 +21,171 @@ pip install -e .
 MAVEN needs API keys for the models you want to use:
 
 ```bash
-# For Claude, GPT, Gemini
+# For Together AI (Recommended - cost-effective)
+export TOGETHER_API_KEY="your-together-key"
+
+# Or use premium models
 export ANTHROPIC_API_KEY="your-anthropic-key"
 export OPENAI_API_KEY="your-openai-key"
 export GOOGLE_API_KEY="your-google-key"
-
-# For Together AI (Llama, Mistral, Qwen, etc.)
-export TOGETHER_API_KEY="your-together-key"
 ```
 
-## Basic Example
+## Basic Example: Detecting Hallucinations
 
 ```python
-from maven import ConsensusOrchestrator
+from maven import HallucinationDetector
 
-# Create orchestrator with three models
-orchestrator = ConsensusOrchestrator(
-    models=["claude-sonnet-4", "gpt-4", "gemini-pro"]
+# Initialize detector with 3 models
+detector = HallucinationDetector(
+    models=[
+        "together/llama-3.1-8b",
+        "together/qwen-2.5-7b",
+        "together/mixtral-8x7b"
+    ]
 )
 
-# Verify a factual claim
-result = orchestrator.verify(
-    query="What is the capital of Australia?"
+# Check an AI-generated answer for hallucinations
+report = detector.detect(
+    query="What are the side effects of aspirin?",
+    answer="According to the 2023 Johnson Study published in NEJM, aspirin causes...",
+    domain="medical"
 )
 
-# Check the result
-print(f"Answer: {result.consensus}")
-print(f"Confidence: {result.confidence}%")
-print(f"Iterations needed: {result.iterations}")
+# Check the results
+print(f"Risk Level: {report.risk_level}")           # CRITICAL, HIGH, MEDIUM, or LOW
+print(f"Confidence: {report.confidence_score}%")    # How confident the answer is safe
+print(f"Flags: {report.flags}")                     # Specific issues detected
+
+# Take action based on risk level
+if report.risk_level in ["CRITICAL", "HIGH"]:
+    print("⚠️  WARNING: High risk of hallucination detected!")
+    print("Details:", report.flags)
 ```
 
 ## Understanding Results
 
-The `verify()` method returns a `ConsensusResult` object:
+The `detect()` method returns a `HallucinationReport` object:
 
 ```python
-result.consensus      # The agreed-upon answer
-result.confidence     # Confidence score (0-100)
-result.iterations     # Number of rounds needed
-result.trace          # Full verification audit trail
-result.dissent        # Any dissenting opinions (if 2/3 consensus)
+report.risk_level          # CRITICAL, HIGH, MEDIUM, or LOW
+report.confidence_score    # 0-100 (higher = more confident answer is accurate)
+report.flags               # List of specific issues detected
+report.consistency_score   # How well models agreed
+report.fact_checks         # Results from fact verification
+report.citation_checks     # Results from citation verification
+report.model_responses     # What each model said
+report.disagreements       # Where models disagreed
 ```
 
-## Viewing the Trace
-
-The trace shows the complete verification process:
+## Real-World Example: Medical AI Safety
 
 ```python
-for step in result.trace:
-    print(f"[{step.role}] {step.model}: {step.summary}")
+# Your AI generates medical advice
+ai_answer = your_ai_model("What conditions prevent aspirin use?")
+
+# Verify before showing to patient
+report = detector.detect(
+    query="What conditions prevent aspirin use?",
+    answer=ai_answer,
+    domain="medical"
+)
+
+# Block dangerous responses
+if report.risk_level == "CRITICAL":
+    # Fabricated study or citation detected
+    alert_human_expert(report)
+    return "Please consult a healthcare professional."
+elif report.risk_level == "HIGH":
+    # Questionable claims detected
+    flag_for_review(report)
+    return ai_answer  # With warning label
+else:
+    # Answer appears safe
+    return ai_answer
 ```
 
 ## Configuration Options
 
 ```python
-orchestrator = ConsensusOrchestrator(
-    models=["claude-sonnet-4", "gpt-4", "gemini-pro"],
+detector = HallucinationDetector(
+    models=["together/llama-3.1-8b", "together/qwen-2.5-7b", "together/mixtral-8x7b"],
     config={
-        "max_iterations": 5,
-        "consensus_threshold": 0.8,
-        "timeout_seconds": 60,
+        "timeout_seconds": 30,      # Per-check timeout
+        "enable_tools": True,       # Use Wikipedia/calculator for fact-checking
     }
 )
 ```
 
-## Using Together AI Models
+## Using Different Models
 
-Together AI provides access to open-source models like Llama, Mistral, and Qwen:
+### Together AI (Recommended - Cost Effective)
 
 ```python
-orchestrator = ConsensusOrchestrator(
+# Small models (fast, affordable)
+detector = HallucinationDetector(
     models=[
-        "together/llama-3.3-70b",
-        "together/mixtral-8x22b",
-        "together/qwen-2.5-72b",
+        "together/llama-3.1-8b",
+        "together/qwen-2.5-7b",
+        "together/mixtral-8x7b"
     ]
 )
 
-result = orchestrator.verify("Your question here")
+# Larger models (better accuracy)
+detector = HallucinationDetector(
+    models=[
+        "together/llama-3.3-70b",
+        "together/mixtral-8x22b",
+        "together/qwen-2.5-72b"
+    ]
+)
 ```
 
-Available aliases:
-- `together/llama-3.3-70b` - Llama 3.3 70B
-- `together/llama-3.1-405b` - Llama 3.1 405B
-- `together/mixtral-8x22b` - Mixtral 8x22B
-- `together/qwen-2.5-72b` - Qwen 2.5 72B
-- `together/deepseek-r1-70b` - DeepSeek R1 70B
+### Premium Models (Higher Accuracy)
 
-You can also use full model paths:
 ```python
-models=["meta-llama/Llama-3.3-70B-Instruct-Turbo", ...]
+detector = HallucinationDetector(
+    models=[
+        "claude-sonnet-4",
+        "gpt-4",
+        "gemini-pro"
+    ]
+)
+```
+
+### Mixed Approach (Balance Cost & Accuracy)
+
+```python
+detector = HallucinationDetector(
+    models=[
+        "together/llama-3.3-70b",  # Open-source, affordable
+        "claude-sonnet-4",         # Premium, high accuracy
+        "together/qwen-2.5-72b"    # Open-source, strong reasoning
+    ]
+)
+```
+
+## Important: Detection vs Generation
+
+**MAVEN is for DETECTION, not GENERATION.**
+
+❌ **Don't use for generating answers:**
+```python
+# This will give worse results than a single model
+result = orchestrator.verify("What is 2+2?")  # DON'T DO THIS
+```
+
+✅ **Do use for detecting hallucinations:**
+```python
+# Generate with single model
+answer = single_model.generate("What is 2+2?")
+
+# Verify with MAVEN
+report = detector.detect(query="What is 2+2?", answer=answer)  # DO THIS
 ```
 
 ## Next Steps
 
-- See [examples/](../examples/) for more use cases
-- See [examples/together_ai_example.py](../examples/together_ai_example.py) for Together AI usage
+- See [example_hallucination_detection.py](../example_hallucination_detection.py) for complete examples
 - Read the [API Reference](API.md) for full documentation
-- Check [ARCHITECTURE.md](ARCHITECTURE.md) for system design details
+- Check [README.md](../README.md) for benchmark results
+- Review [CHANGELOG.md](../CHANGELOG.md) for research findings

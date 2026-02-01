@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "C:\Users\39392\OneDrive\Desktop\maven\run_all_benchmarks.py", line 371, in <module>
+    main()
+  File "C:\Users\39392\OneDrive\Desktop\maven\run_all_benchmarks.py", line 327, in main
+    print_banner()
+  File "C:\Users\39392\OneDrive\Desktop\maven\run_all_benchmarks.py", line 63, in print_banner
+    print("""
+  File "C:\Users\39392\AppData\Local\Programs\Python\Python39\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 6-81: character maps to <undefined>

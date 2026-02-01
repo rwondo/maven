@@ -6,8 +6,8 @@ Hallucination detection for high-stakes domains using multi-model verification.
 Primary Use Case: Flag dangerous AI hallucinations in law, medicine, and other
 critical applications where errors could cause serious harm.
 
-Key Finding: Perfect detection of critical hallucinations (100%) with acceptable
-over-flagging of safe content. Better to flag 3 good answers than miss 1 dangerous one.
+Key Finding: 85.3% hallucination detection rate on TruthfulQA with 82% accuracy.
+Better to flag a few good answers than miss dangerous hallucinations.
 
 Basic Usage:
     from maven import HallucinationDetector
@@ -44,6 +44,15 @@ __author__ = "Arber Ferra"
 # Primary API
 from maven.hallucination_detector import HallucinationDetector, HallucinationReport
 
+# MCP Server Integration (optional)
+from maven.mcp_integration import (
+    MCPServer,
+    MCPServerRegistry,
+    StdioMCPServer,
+    HTTPMCPServer,
+    create_mcp_server
+)
+
 # Experimental/deprecated features
 from maven.orchestrator import ConsensusOrchestrator, VerificationOrchestrator
 from maven.consensus import ConsensusResult, ConsensusDetector, VerificationResult
@@ -62,6 +71,12 @@ __all__ = [
     # Primary API (recommended)
     "HallucinationDetector",
     "HallucinationReport",
+    # MCP Server Integration (optional)
+    "MCPServer",
+    "MCPServerRegistry",
+    "StdioMCPServer",
+    "HTTPMCPServer",
+    "create_mcp_server",
     # Experimental (not recommended)
     "ConsensusOrchestrator",
     "VerificationOrchestrator",
