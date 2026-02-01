@@ -316,7 +316,7 @@ We especially welcome contributions in these areas:
 
 - **GitHub Issues**: For bugs and feature requests
 - **GitHub Discussions**: For questions and ideas
-- **Email**: arberferra@example.com
+- **Email**: ferraarber@gmail.com
 
 ---
 
