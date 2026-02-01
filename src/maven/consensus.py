@@ -6,8 +6,7 @@ This module determines when models have reached agreement.
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from maven.utils import (
     calculate_similarity,
@@ -45,11 +44,11 @@ class ConsensusResult:
     consensus: str
     confidence: float
     iterations: int
-    trace: List[TraceStep]
+    trace: list[TraceStep]
     dissent: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary format."""
         return {
             "consensus": self.consensus,
@@ -76,12 +75,12 @@ class VerificationResult:
 
     verdict: str  # "ACCEPTED", "REJECTED", "UNCERTAIN"
     answer: str  # The final answer
-    errors: List[str]  # List of errors found, empty if accepted
+    errors: list[str]  # List of errors found, empty if accepted
     confidence: float  # 0-100
-    trace: List[TraceStep]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    trace: list[TraceStep]
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert result to dictionary format."""
         return {
             "verdict": self.verdict,
@@ -125,7 +124,7 @@ class ConsensusDetector:
 
     def check_consensus(
         self,
-        responses: List[ModelResponse],
+        responses: list[ModelResponse],
     ) -> tuple[bool, float, Optional[str]]:
         """Check if responses have reached consensus.
 
@@ -193,7 +192,7 @@ class ConsensusDetector:
         logger.info("No consensus reached yet")
         return False, confidence, None
 
-    def extract_consensus_answer(self, responses: List[ModelResponse]) -> str:
+    def extract_consensus_answer(self, responses: list[ModelResponse]) -> str:
         """Extract the consensus answer from responses.
 
         Uses enhanced structured answer extraction that prioritizes:

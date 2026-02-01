@@ -5,12 +5,12 @@ to build reasoning step-by-step, each contributing to the final solution.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
-from maven.consensus import VerificationResult, TraceStep
+from maven.consensus import TraceStep, VerificationResult
 from maven.models import ModelInterface, create_model
-from maven.tools import extract_tool_calls, execute_tool_calls, default_registry
-from maven.utils import generate_trace_id, get_timestamp, merge_configs, DEFAULT_CONFIG
+from maven.tools import default_registry, execute_tool_calls, extract_tool_calls
+from maven.utils import DEFAULT_CONFIG, generate_trace_id, get_timestamp, merge_configs
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +29,8 @@ class CollaborativeOrchestrator:
 
     def __init__(
         self,
-        models: List[str],
-        config: Optional[Dict[str, Any]] = None,
+        models: list[str],
+        config: Optional[dict[str, Any]] = None,
     ):
         """Initialize collaborative orchestrator.
 
@@ -46,8 +46,8 @@ class CollaborativeOrchestrator:
 
         self.model_ids = models
         self.config = merge_configs(DEFAULT_CONFIG, config)
-        self._models: Dict[str, ModelInterface] = {}
-        self._trace: List[TraceStep] = []
+        self._models: dict[str, ModelInterface] = {}
+        self._trace: list[TraceStep] = []
 
         logger.info(f"Initialized CollaborativeOrchestrator with {len(models)} models")
 
@@ -250,6 +250,6 @@ Complete the solution:"""
             },
         )
 
-    def get_trace(self) -> List[TraceStep]:
+    def get_trace(self) -> list[TraceStep]:
         """Get the reasoning trace from the last run."""
         return self._trace.copy()

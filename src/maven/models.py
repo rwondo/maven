@@ -73,8 +73,8 @@ class ClaudeModel(ModelInterface):
                 if not api_key:
                     raise ValueError("ANTHROPIC_API_KEY environment variable not set")
                 self._client = anthropic.Anthropic(api_key=api_key)
-            except ImportError:
-                raise ImportError("anthropic package not installed")
+            except ImportError as err:
+                raise ImportError("anthropic package not installed") from err
         return self._client
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -114,8 +114,8 @@ class GPTModel(ModelInterface):
                 if not api_key:
                     raise ValueError("OPENAI_API_KEY environment variable not set")
                 self._client = openai.OpenAI(api_key=api_key)
-            except ImportError:
-                raise ImportError("openai package not installed")
+            except ImportError as err:
+                raise ImportError("openai package not installed") from err
         return self._client
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -156,8 +156,8 @@ class GeminiModel(ModelInterface):
                     raise ValueError("GOOGLE_API_KEY environment variable not set")
                 genai.configure(api_key=api_key)
                 self._model = genai.GenerativeModel(self.model_id)
-            except ImportError:
-                raise ImportError("google-generativeai package not installed")
+            except ImportError as err:
+                raise ImportError("google-generativeai package not installed") from err
         return self._model
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -208,8 +208,10 @@ class TogetherModel(ModelInterface):
                     api_key=api_key,
                     base_url="https://api.together.xyz/v1",
                 )
-            except ImportError:
-                raise ImportError("openai package not installed (required for Together AI)")
+            except ImportError as err:
+                raise ImportError(
+                    "openai package not installed (required for Together AI)"
+                ) from err
         return self._client
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -240,7 +242,7 @@ class MockModel(ModelInterface):
         self.responses = responses or {}
         self.call_count = 0
 
-    def generate(self, prompt: str, role: str) -> str:
+    def generate(self, prompt: str, role: str) -> str:  # noqa: ARG002
         """Return mock response."""
         self.call_count += 1
 

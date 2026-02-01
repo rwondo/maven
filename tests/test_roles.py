@@ -2,8 +2,6 @@
 Tests for role definitions and prompts.
 """
 
-import pytest
-
 from maven.roles import Role, RolePrompts
 
 

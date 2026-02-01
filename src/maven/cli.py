@@ -14,7 +14,7 @@ import argparse
 import json
 import logging
 import sys
-from typing import List, Optional
+from typing import Optional
 
 from maven import ConsensusOrchestrator, __version__
 from maven.consensus import ConsensusResult
@@ -30,7 +30,7 @@ def setup_logging(verbose: bool = False) -> None:
     )
 
 
-def parse_models(models_str: str) -> List[str]:
+def parse_models(models_str: str) -> list[str]:
     """Parse comma-separated model string."""
     return [m.strip() for m in models_str.split(",") if m.strip()]
 
@@ -233,7 +233,7 @@ def format_detection_result(report, verbose: bool = False) -> str:
 def load_config(config_path: str) -> dict:
     """Load configuration from JSON file."""
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         print(f"Error: Config file not found: {config_path}", file=sys.stderr)
@@ -243,7 +243,7 @@ def load_config(config_path: str) -> dict:
         sys.exit(1)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:
     """Main CLI entry point.
 
     Args:

@@ -7,17 +7,15 @@ for improved performance on batch operations.
 
 import asyncio
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Callable, Optional
 
+from maven.async_models import AsyncModelInterface, create_async_model
+from maven.consensus import TraceStep
 from maven.hallucination_detector import (
     HallucinationReport,
-    DOMAIN_PROMPTS,
 )
-from maven.consensus import TraceStep
-from maven.async_models import AsyncModelInterface, create_async_model
 from maven.mcp_integration import MCPServerRegistry, create_mcp_server
-from maven.utils import generate_trace_id, get_timestamp, merge_configs, DEFAULT_CONFIG
+from maven.utils import DEFAULT_CONFIG, generate_trace_id, get_timestamp, merge_configs
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +54,9 @@ class AsyncHallucinationDetector:
 
     def __init__(
         self,
-        models: List[str],
-        config: Optional[Dict[str, Any]] = None,
-        mcp_servers: Optional[List[Dict[str, Any]]] = None,
+        models: list[str],
+        config: Optional[dict[str, Any]] = None,
+        mcp_servers: Optional[list[dict[str, Any]]] = None,
         rate_limit_delay: float = 0.5,
     ):
         """Initialize async hallucination detector.
@@ -74,8 +72,8 @@ class AsyncHallucinationDetector:
 
         self.model_ids = models
         self.config = merge_configs(DEFAULT_CONFIG, config)
-        self._models: Dict[str, AsyncModelInterface] = {}
-        self._trace: List[TraceStep] = []
+        self._models: dict[str, AsyncModelInterface] = {}
+        self._trace: list[TraceStep] = []
         self._rate_limit_delay = rate_limit_delay
         self._rate_limiter = asyncio.Semaphore(len(models))  # Limit concurrent calls
 
@@ -118,7 +116,7 @@ class AsyncHallucinationDetector:
         self,
         query: str,
         answer: str,
-    ) -> tuple[List[str], List[Dict[str, Any]]]:
+    ) -> tuple[list[str], list[dict[str, Any]]]:
         """Run consistency checks across all models in parallel."""
         CONSISTENCY_PROMPT = f"""You are verifying an AI-generated answer for potential hallucinations.
 
@@ -153,7 +151,7 @@ CONFIDENCE: [High/Medium/Low in your assessment]"""
         model_responses = []
         consistency_checks = []
 
-        for i, (model_id, response) in enumerate(zip(self.model_ids, responses)):
+        for _i, (model_id, response) in enumerate(zip(self.model_ids, responses)):
             if isinstance(response, Exception):
                 response = f"Error: {response}"
 
@@ -181,7 +179,7 @@ CONFIDENCE: [High/Medium/Low in your assessment]"""
 
         return model_responses, consistency_checks
 
-    async def _run_fact_check(self, query: str, answer: str) -> Dict[str, Any]:
+    async def _run_fact_check(self, query: str, answer: str) -> dict[str, Any]:
         """Run fact check using first model."""
         FACT_CHECK_PROMPT = f"""You are fact-checking an AI answer for a critical application.
 
@@ -215,7 +213,7 @@ CONFIDENCE: [High/Medium/Low]"""
             "response": response[:500],
         }
 
-    async def _run_citation_check(self, query: str, answer: str) -> Dict[str, Any]:
+    async def _run_citation_check(self, query: str, answer: str) -> dict[str, Any]:
         """Run citation check using second model."""
         CITATION_PROMPT = f"""You are checking an answer for fabricated or misleading citations/sources.
 
@@ -256,10 +254,10 @@ CONFIDENCE: [High/Medium/Low]"""
 
     def _calculate_risk(
         self,
-        consistency_checks: List[Dict[str, Any]],
+        consistency_checks: list[dict[str, Any]],
         fact_response: str,
         citation_response: str,
-    ) -> tuple[str, float, List[str], List[str]]:
+    ) -> tuple[str, float, list[str], list[str]]:
         """Calculate risk level and confidence score."""
         flags = []
         disagreements = []
@@ -376,11 +374,11 @@ CONFIDENCE: [High/Medium/Low]"""
 
     async def detect_batch(
         self,
-        items: List[Dict[str, str]],
+        items: list[dict[str, str]],
         domain: Optional[str] = None,
         max_concurrent: int = 5,
         progress_callback: Optional[Callable[[int, int], None]] = None,
-    ) -> List[HallucinationReport]:
+    ) -> list[HallucinationReport]:
         """Detect hallucinations in a batch with controlled concurrency.
 
         Args:
@@ -399,10 +397,10 @@ CONFIDENCE: [High/Medium/Low]"""
             ], max_concurrent=3)
         """
         semaphore = asyncio.Semaphore(max_concurrent)
-        results: List[Optional[HallucinationReport]] = [None] * len(items)
+        results: list[Optional[HallucinationReport]] = [None] * len(items)
         completed = 0
 
-        async def detect_with_limit(index: int, item: Dict[str, str]) -> None:
+        async def detect_with_limit(index: int, item: dict[str, str]) -> None:
             nonlocal completed
             async with semaphore:
                 query = item.get("query", "")
@@ -445,7 +443,7 @@ CONFIDENCE: [High/Medium/Low]"""
         query: str,
         answer: str,
         domain: Optional[str] = None,
-        threshold: Optional[List[str]] = None,
+        threshold: Optional[list[str]] = None,
     ) -> bool:
         """Quick async check if an answer is likely a hallucination.
 
@@ -464,6 +462,6 @@ CONFIDENCE: [High/Medium/Low]"""
         report = await self.detect(query, answer, domain)
         return report.risk_level in threshold
 
-    def get_trace(self) -> List[TraceStep]:
+    def get_trace(self) -> list[TraceStep]:
         """Get detection trace from last run."""
         return self._trace.copy()

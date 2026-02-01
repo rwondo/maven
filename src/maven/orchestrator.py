@@ -7,7 +7,7 @@ coordinates multi-model verification.
 
 import logging
 import random
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from maven.consensus import (
     ConsensusDetector,
@@ -18,7 +18,7 @@ from maven.consensus import (
 )
 from maven.models import ModelInterface, create_model
 from maven.roles import Role, RolePrompts
-from maven.tools import extract_tool_calls, execute_tool_calls, default_registry
+from maven.tools import default_registry, execute_tool_calls, extract_tool_calls
 from maven.utils import (
     DEFAULT_CONFIG,
     generate_trace_id,
@@ -47,8 +47,8 @@ class ConsensusOrchestrator:
 
     def __init__(
         self,
-        models: List[str],
-        config: Optional[Dict[str, Any]] = None,
+        models: list[str],
+        config: Optional[dict[str, Any]] = None,
     ):
         """Initialize orchestrator with model list and configuration.
 
@@ -63,9 +63,9 @@ class ConsensusOrchestrator:
 
         self.model_ids = models
         self.config = merge_configs(DEFAULT_CONFIG, config)
-        self._models: Dict[str, ModelInterface] = {}
-        self._trace: List[TraceStep] = []
-        self._current_roles: Dict[str, Role] = {}
+        self._models: dict[str, ModelInterface] = {}
+        self._trace: list[TraceStep] = []
+        self._current_roles: dict[str, Role] = {}
 
         logger.info(f"Initialized ConsensusOrchestrator with {len(models)} models")
 
@@ -82,7 +82,7 @@ class ConsensusOrchestrator:
             self._models[model_id] = create_model(model_id)
         return self._models[model_id]
 
-    def _assign_roles(self) -> Dict[str, Role]:
+    def _assign_roles(self) -> dict[str, Role]:
         """Randomly assign Architect/Skeptic/Mediator roles to models.
 
         Returns:
@@ -121,7 +121,7 @@ class ConsensusOrchestrator:
         query: str,
         iteration: int,
         context: str = "",
-    ) -> List[ModelResponse]:
+    ) -> list[ModelResponse]:
         """Execute one round of verification.
 
         Args:
@@ -202,7 +202,7 @@ class ConsensusOrchestrator:
         self,
         query: str,
         max_iterations: Optional[int] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,  # noqa: ARG002
     ) -> ConsensusResult:
         """Run verification protocol on a query.
 
@@ -234,7 +234,7 @@ class ConsensusOrchestrator:
         detector = ConsensusDetector(threshold=self.config["consensus_threshold"])
 
         iteration_context = ""
-        final_responses: List[ModelResponse] = []
+        final_responses: list[ModelResponse] = []
 
         # Main verification loop
         for iteration in range(1, max_iter + 1):
@@ -303,7 +303,7 @@ class ConsensusOrchestrator:
             },
         )
 
-    def get_trace(self) -> List[TraceStep]:
+    def get_trace(self) -> list[TraceStep]:
         """Get the verification trace from the last run.
 
         Returns:
@@ -326,8 +326,8 @@ class VerificationOrchestrator:
 
     def __init__(
         self,
-        models: List[str],
-        config: Optional[Dict[str, Any]] = None,
+        models: list[str],
+        config: Optional[dict[str, Any]] = None,
     ):
         """Initialize verification orchestrator.
 
@@ -344,8 +344,8 @@ class VerificationOrchestrator:
 
         self.model_ids = models
         self.config = merge_configs(DEFAULT_CONFIG, config)
-        self._models: Dict[str, ModelInterface] = {}
-        self._trace: List[TraceStep] = []
+        self._models: dict[str, ModelInterface] = {}
+        self._trace: list[TraceStep] = []
 
         logger.info(f"Initialized VerificationOrchestrator with {len(models)} models")
 
@@ -434,7 +434,7 @@ class VerificationOrchestrator:
 
         context = f"Original Query: {query}\n\nProposed Answer:\n{proposed_answer}"
 
-        for i, verifier_id in enumerate(verifier_ids, 1):
+        for _i, verifier_id in enumerate(verifier_ids, 1):
             verifier_prompt = RolePrompts.format_query_prompt(
                 query="Verify the correctness of the proposed answer above.",
                 role=Role.VERIFIER,
@@ -537,7 +537,7 @@ class VerificationOrchestrator:
             },
         )
 
-    def get_trace(self) -> List[TraceStep]:
+    def get_trace(self) -> list[TraceStep]:
         """Get the verification trace from the last run.
 
         Returns:

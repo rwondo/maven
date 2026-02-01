@@ -2,8 +2,6 @@
 Tests for consensus detection logic.
 """
 
-import pytest
-
 from maven.consensus import (
     ConsensusDetector,
     ConsensusResult,

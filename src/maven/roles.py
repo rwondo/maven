@@ -6,7 +6,6 @@ verification protocol.
 """
 
 from enum import Enum
-from typing import Dict
 
 
 class Role(Enum):
@@ -235,7 +234,7 @@ CONFIDENCE: [High/Medium/Low in your verdict]"""
         Raises:
             ValueError: If role is not recognized.
         """
-        prompts: Dict[Role, str] = {
+        prompts: dict[Role, str] = {
             Role.ARCHITECT: cls.ARCHITECT,
             Role.SKEPTIC: cls.SKEPTIC,
             Role.MEDIATOR: cls.MEDIATOR,

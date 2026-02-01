@@ -1,8 +1,8 @@
 """Tests for async hallucination detection."""
 
-import pytest
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from maven.async_hallucination_detector import AsyncHallucinationDetector
 from maven.hallucination_detector import HallucinationReport

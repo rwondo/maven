@@ -9,8 +9,8 @@ Provides external tools that models can use to:
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional
 from abc import ABC, abstractmethod
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,8 @@ class CalculatorTool(Tool):
             Result as a string
         """
         import ast
-        import operator
         import math
+        import operator
 
         try:
             # Safe operators mapping
@@ -231,7 +231,7 @@ class ToolRegistry:
     """Registry of available tools."""
 
     def __init__(self):
-        self.tools: Dict[str, Tool] = {}
+        self.tools: dict[str, Tool] = {}
 
     def register(self, tool: Tool):
         """Register a tool."""
@@ -242,7 +242,7 @@ class ToolRegistry:
         """Get a tool by name."""
         return self.tools.get(name)
 
-    def list_tools(self) -> List[Dict[str, str]]:
+    def list_tools(self) -> list[dict[str, str]]:
         """List all available tools."""
         return [
             {"name": tool.name, "description": tool.description} for tool in self.tools.values()
@@ -263,7 +263,7 @@ default_registry.register(WikipediaSearchTool())
 default_registry.register(FactCheckTool())
 
 
-def extract_tool_calls(text: str) -> List[Dict[str, Any]]:
+def extract_tool_calls(text: str) -> list[dict[str, Any]]:
     """Extract tool calls from model output.
 
     Looks for patterns like:
@@ -307,7 +307,7 @@ def extract_tool_calls(text: str) -> List[Dict[str, Any]]:
 
 
 def execute_tool_calls(
-    tool_calls: List[Dict[str, Any]], registry: ToolRegistry = default_registry
+    tool_calls: list[dict[str, Any]], registry: ToolRegistry = default_registry
 ) -> str:
     """Execute tool calls and return results.
 
@@ -363,16 +363,16 @@ if __name__ == "__main__":
     print("=" * 70)
 
     calc = CalculatorTool()
-    print(f"\n[Calculator Test]")
+    print("\n[Calculator Test]")
     print(f"15 + 27 = {calc.execute('15 + 27')}")
     print(f"sqrt(144) = {calc.execute('sqrt(144)')}")
 
-    print(f"\n[Fact Check Test]")
+    print("\n[Fact Check Test]")
     fact = FactCheckTool()
     print(fact.execute("There are 8 planets in our solar system"))
     print(fact.execute("There are 9 planets in our solar system"))
 
-    print(f"\n[Tool Call Extraction Test]")
+    print("\n[Tool Call Extraction Test]")
     text = """
     Let me calculate this:
     USE_TOOL: calculator
@@ -387,7 +387,7 @@ if __name__ == "__main__":
     print(f"Extracted {len(calls)} tool calls:")
     print(json.dumps(calls, indent=2))
 
-    print(f"\n[Tool Execution Test]")
+    print("\n[Tool Execution Test]")
     results = execute_tool_calls(calls)
     print(results)
 
