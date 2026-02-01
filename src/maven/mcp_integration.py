@@ -12,8 +12,8 @@ Examples:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
 from abc import ABC, abstractmethod
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 class MCPServer(ABC):
     """Base class for MCP server connections."""
 
-    def __init__(self, name: str, config: Dict[str, Any]):
+    def __init__(self, name: str, config: dict[str, Any]):
         self.name = name
         self.config = config
-        self.tools: Dict[str, Dict[str, Any]] = {}
+        self.tools: dict[str, dict[str, Any]] = {}
 
     @abstractmethod
     def connect(self) -> bool:
@@ -36,7 +36,7 @@ class MCPServer(ABC):
         pass
 
     @abstractmethod
-    def discover_tools(self) -> List[Dict[str, Any]]:
+    def discover_tools(self) -> list[dict[str, Any]]:
         """Discover available tools from the server.
 
         Returns:
@@ -45,7 +45,7 @@ class MCPServer(ABC):
         pass
 
     @abstractmethod
-    def execute_tool(self, tool_name: str, params: Dict[str, Any]) -> str:
+    def execute_tool(self, tool_name: str, params: dict[str, Any]) -> str:
         """Execute a tool on the MCP server.
 
         Args:
@@ -57,6 +57,7 @@ class MCPServer(ABC):
         """
         pass
 
+    @abstractmethod
     def disconnect(self):
         """Disconnect from the MCP server."""
         pass
@@ -68,7 +69,7 @@ class StdioMCPServer(MCPServer):
     This is the standard MCP protocol using JSON-RPC over stdio.
     """
 
-    def __init__(self, name: str, config: Dict[str, Any]):
+    def __init__(self, name: str, config: dict[str, Any]):
         super().__init__(name, config)
         self.process = None
         self.command = config.get("command")
@@ -78,7 +79,6 @@ class StdioMCPServer(MCPServer):
         """Start the MCP server process and connect via stdio."""
         try:
             import subprocess
-            import json
 
             # Start the MCP server process
             self.process = subprocess.Popen(
@@ -96,7 +96,7 @@ class StdioMCPServer(MCPServer):
             logger.error(f"Failed to connect to MCP server {self.name}: {e}")
             return False
 
-    def discover_tools(self) -> List[Dict[str, Any]]:
+    def discover_tools(self) -> list[dict[str, Any]]:
         """Discover tools by sending 'tools/list' request."""
         try:
             import json
@@ -124,7 +124,7 @@ class StdioMCPServer(MCPServer):
             logger.error(f"Failed to discover tools from {self.name}: {e}")
             return []
 
-    def execute_tool(self, tool_name: str, params: Dict[str, Any]) -> str:
+    def execute_tool(self, tool_name: str, params: dict[str, Any]) -> str:
         """Execute tool by sending 'tools/call' request."""
         try:
             import json
@@ -175,7 +175,7 @@ class HTTPMCPServer(MCPServer):
     For MCP servers that expose HTTP endpoints instead of stdio.
     """
 
-    def __init__(self, name: str, config: Dict[str, Any]):
+    def __init__(self, name: str, config: dict[str, Any]):
         super().__init__(name, config)
         self.base_url = config.get("url")
         self.headers = config.get("headers", {})
@@ -202,7 +202,7 @@ class HTTPMCPServer(MCPServer):
             logger.error(f"Failed to connect to HTTP MCP server {self.name}: {e}")
             return False
 
-    def discover_tools(self) -> List[Dict[str, Any]]:
+    def discover_tools(self) -> list[dict[str, Any]]:
         """Discover tools via HTTP GET /tools endpoint."""
         try:
             import requests
@@ -222,7 +222,7 @@ class HTTPMCPServer(MCPServer):
             logger.error(f"Failed to discover tools from HTTP server {self.name}: {e}")
             return []
 
-    def execute_tool(self, tool_name: str, params: Dict[str, Any]) -> str:
+    def execute_tool(self, tool_name: str, params: dict[str, Any]) -> str:
         """Execute tool via HTTP POST /tools/{tool_name} endpoint."""
         try:
             import requests
@@ -246,8 +246,8 @@ class MCPServerRegistry:
     """Registry for managing multiple MCP servers."""
 
     def __init__(self):
-        self.servers: Dict[str, MCPServer] = {}
-        self.all_tools: Dict[str, tuple[MCPServer, str]] = {}  # tool_name -> (server, tool_name)
+        self.servers: dict[str, MCPServer] = {}
+        self.all_tools: dict[str, tuple[MCPServer, str]] = {}  # tool_name -> (server, tool_name)
 
     def register_server(self, server: MCPServer) -> bool:
         """Register and connect to an MCP server.
@@ -279,7 +279,7 @@ class MCPServerRegistry:
         logger.info(f"Registered MCP server: {server.name} with {len(tools)} tools")
         return True
 
-    def execute_tool(self, tool_name: str, params: Dict[str, Any]) -> str:
+    def execute_tool(self, tool_name: str, params: dict[str, Any]) -> str:
         """Execute a tool from any registered server.
 
         Args:
@@ -295,7 +295,7 @@ class MCPServerRegistry:
         server, actual_tool_name = self.all_tools[tool_name]
         return server.execute_tool(actual_tool_name, params)
 
-    def list_tools(self) -> List[Dict[str, Any]]:
+    def list_tools(self) -> list[dict[str, Any]]:
         """List all available tools from all servers."""
         tools = []
         for tool_name, (server, _) in self.all_tools.items():
@@ -327,7 +327,7 @@ class MCPServerRegistry:
         self.all_tools.clear()
 
 
-def create_mcp_server(server_type: str, name: str, config: Dict[str, Any]) -> Optional[MCPServer]:
+def create_mcp_server(server_type: str, name: str, config: dict[str, Any]) -> Optional[MCPServer]:
     """Factory function to create MCP server instances.
 
     Args:

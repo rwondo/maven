@@ -116,7 +116,7 @@ class TestVerification:
 
     def test_max_iterations_parameter(self):
         """Verify respects max_iterations parameter."""
-        orchestrator = ConsensusOrchestrator(
+        ConsensusOrchestrator(
             models=["mock-1", "mock-2", "mock-3"],
             config={"max_iterations": 2},
         )

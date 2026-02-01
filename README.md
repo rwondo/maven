@@ -81,14 +81,14 @@ async def verify_batch():
     detector = AsyncHallucinationDetector(
         models=["together/llama-3.1-8b", "together/qwen-2.5-7b", "together/mixtral-8x7b"]
     )
-    
+
     # Process multiple items in parallel (5x faster)
     reports = await detector.detect_batch([
         {"query": "What is aspirin?", "answer": "Aspirin is..."},
         {"query": "What is ibuprofen?", "answer": "Ibuprofen is..."},
         {"query": "What is acetaminophen?", "answer": "Acetaminophen is..."},
     ], max_concurrent=5)
-    
+
     for report in reports:
         print(f"{report.risk_level}: {report.flags}")
 

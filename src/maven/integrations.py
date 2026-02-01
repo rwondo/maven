@@ -14,8 +14,8 @@ LlamaIndex Integration:
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Union
 from dataclasses import dataclass
+from typing import Any, Optional, Union
 
 from maven.hallucination_detector import HallucinationDetector, HallucinationReport
 
@@ -34,7 +34,7 @@ class HallucinationCheckResult:
     is_hallucination: bool
     risk_level: str
     confidence_score: float
-    flags: List[str]
+    flags: list[str]
     original_output: str
     report: Optional[HallucinationReport] = None
 
@@ -67,8 +67,8 @@ class MAVENCallbackHandler:
 
     def __init__(
         self,
-        models: List[str],
-        risk_threshold: Optional[List[str]] = None,
+        models: list[str],
+        risk_threshold: Optional[list[str]] = None,
         domain: Optional[str] = None,
         auto_block: bool = False,
     ):
@@ -87,12 +87,14 @@ class MAVENCallbackHandler:
         self.last_detection: Optional[HallucinationCheckResult] = None
         self._pending_input: Optional[str] = None
 
-    def on_llm_start(self, serialized: Dict[str, Any], prompts: List[str], **kwargs) -> None:
+    def on_llm_start(
+        self, serialized: dict[str, Any], prompts: list[str], **kwargs  # noqa: ARG002
+    ) -> None:
         """Called when LLM starts generating."""
         if prompts:
             self._pending_input = prompts[0]
 
-    def on_llm_end(self, response: Any, **kwargs) -> None:
+    def on_llm_end(self, response: Any, **kwargs) -> None:  # noqa: ARG002
         """Called when LLM finishes generating."""
         try:
             # Extract output text
@@ -129,7 +131,7 @@ class MAVENCallbackHandler:
                 raise
             logger.error(f"Error in hallucination detection callback: {e}")
 
-    def on_llm_error(self, error: Exception, **kwargs) -> None:
+    def on_llm_error(self, error: Exception, **kwargs) -> None:  # noqa: ARG002
         """Called when LLM errors."""
         self._pending_input = None
 
@@ -173,8 +175,8 @@ class MAVENChain:
     def __init__(
         self,
         chain: Any,
-        models: List[str],
-        risk_threshold: Optional[List[str]] = None,
+        models: list[str],
+        risk_threshold: Optional[list[str]] = None,
         domain: Optional[str] = None,
         include_report: bool = False,
     ):
@@ -193,7 +195,7 @@ class MAVENChain:
         self.domain = domain
         self.include_report = include_report
 
-    def invoke(self, inputs: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+    def invoke(self, inputs: dict[str, Any], **kwargs) -> dict[str, Any]:
         """Run chain with hallucination detection.
 
         Args:
@@ -233,7 +235,7 @@ class MAVENChain:
 
         return output_dict
 
-    def __call__(self, inputs: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+    def __call__(self, inputs: dict[str, Any], **kwargs) -> dict[str, Any]:
         """Alias for invoke()."""
         return self.invoke(inputs, **kwargs)
 
@@ -260,7 +262,7 @@ class MAVENRetriever:
     def __init__(
         self,
         retriever: Any,
-        models: List[str],
+        models: list[str],
         check_content: bool = True,
         domain: Optional[str] = None,
     ):
@@ -277,7 +279,7 @@ class MAVENRetriever:
         self.check_content = check_content
         self.domain = domain
 
-    def get_relevant_documents(self, query: str) -> List[Any]:
+    def get_relevant_documents(self, query: str) -> list[Any]:
         """Retrieve and verify documents.
 
         Args:
@@ -339,8 +341,8 @@ class MAVENQueryEngine:
     def __init__(
         self,
         query_engine: Any,
-        models: List[str],
-        risk_threshold: Optional[List[str]] = None,
+        models: list[str],
+        risk_threshold: Optional[list[str]] = None,
         domain: Optional[str] = None,
         block_on_hallucination: bool = False,
     ):
@@ -401,7 +403,7 @@ class MAVENResponse:
     is_verified: bool
     risk_level: str
     confidence_score: float
-    flags: List[str]
+    flags: list[str]
     report: Optional[HallucinationReport] = None
 
     def __str__(self) -> str:
@@ -438,7 +440,7 @@ class MAVENResponseEvaluator:
 
     def __init__(
         self,
-        models: List[str],
+        models: list[str],
         domain: Optional[str] = None,
     ):
         """Initialize evaluator.
@@ -482,9 +484,9 @@ class MAVENResponseEvaluator:
 
     def evaluate_batch(
         self,
-        items: List[Dict[str, str]],
+        items: list[dict[str, str]],
         domain: Optional[str] = None,
-    ) -> List[HallucinationCheckResult]:
+    ) -> list[HallucinationCheckResult]:
         """Evaluate multiple responses.
 
         Args:
@@ -510,7 +512,7 @@ class MAVENResponseEvaluator:
 # ============================================================================
 
 
-def create_langchain_callback(models: List[str], **kwargs) -> MAVENCallbackHandler:
+def create_langchain_callback(models: list[str], **kwargs) -> MAVENCallbackHandler:
     """Create a LangChain callback handler.
 
     Args:
@@ -523,7 +525,7 @@ def create_langchain_callback(models: List[str], **kwargs) -> MAVENCallbackHandl
     return MAVENCallbackHandler(models=models, **kwargs)
 
 
-def wrap_langchain_chain(chain: Any, models: List[str], **kwargs) -> MAVENChain:
+def wrap_langchain_chain(chain: Any, models: list[str], **kwargs) -> MAVENChain:
     """Wrap a LangChain chain with hallucination detection.
 
     Args:
@@ -537,7 +539,7 @@ def wrap_langchain_chain(chain: Any, models: List[str], **kwargs) -> MAVENChain:
     return MAVENChain(chain=chain, models=models, **kwargs)
 
 
-def wrap_llamaindex_engine(query_engine: Any, models: List[str], **kwargs) -> MAVENQueryEngine:
+def wrap_llamaindex_engine(query_engine: Any, models: list[str], **kwargs) -> MAVENQueryEngine:
     """Wrap a LlamaIndex query engine with hallucination detection.
 
     Args:

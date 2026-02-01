@@ -7,7 +7,7 @@ This module provides helper functions used throughout the library.
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +97,7 @@ def extract_structured_answer(text: str) -> Optional[str]:
     return None
 
 
-def extract_numerical_values(text: str) -> List[float]:
+def extract_numerical_values(text: str) -> list[float]:
     """Extract numerical values from text.
 
     Args:
@@ -114,7 +114,7 @@ def extract_numerical_values(text: str) -> List[float]:
     return [float(m) for m in matches if m]
 
 
-def extract_key_claims(text: str) -> List[str]:
+def extract_key_claims(text: str) -> list[str]:
     """Extract key claims from a response for consensus comparison.
 
     Enhanced version that extracts structured answers first,
@@ -149,7 +149,7 @@ def extract_key_claims(text: str) -> List[str]:
     return claims if claims else sentences
 
 
-def calculate_similarity(claims1: List[str], claims2: List[str]) -> float:
+def calculate_similarity(claims1: list[str], claims2: list[str]) -> float:
     """Calculate enhanced similarity between two claim lists.
 
     Uses multiple strategies weighted by importance:
@@ -204,8 +204,8 @@ def calculate_similarity(claims1: List[str], claims2: List[str]) -> float:
             if structured_sim == 0.0:
                 # Remove common filler words before comparing
                 stopwords = {"the", "is", "a", "an", "it", "this", "that", "equals", "answer"}
-                words1 = set(w for w in norm1.split() if w not in stopwords and len(w) > 1)
-                words2 = set(w for w in norm2.split() if w not in stopwords and len(w) > 1)
+                words1 = {w for w in norm1.split() if w not in stopwords and len(w) > 1}
+                words2 = {w for w in norm2.split() if w not in stopwords and len(w) > 1}
                 if words1 and words2:
                     structured_sim = len(words1 & words2) / len(words1 | words2)
 
@@ -275,18 +275,18 @@ def calculate_similarity(claims1: List[str], claims2: List[str]) -> float:
         "they",
     }
 
-    words1 = set(
+    words1 = {
         w.lower()
         for claim in claims1
         for w in claim.split()
         if w.lower() not in stopwords and len(w) > 2
-    )
-    words2 = set(
+    }
+    words2 = {
         w.lower()
         for claim in claims2
         for w in claim.split()
         if w.lower() not in stopwords and len(w) > 2
-    )
+    }
 
     semantic_sim = 0.0
     if words1 and words2:
@@ -334,7 +334,7 @@ def calculate_similarity(claims1: List[str], claims2: List[str]) -> float:
     return final_similarity
 
 
-def validate_models(models: List[str]) -> None:
+def validate_models(models: list[str]) -> None:
     """Validate model configuration.
 
     Args:
@@ -353,7 +353,7 @@ def validate_models(models: List[str]) -> None:
         raise ValueError("Duplicate models are not allowed")
 
 
-def merge_configs(default: Dict[str, Any], override: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def merge_configs(default: dict[str, Any], override: Optional[dict[str, Any]]) -> dict[str, Any]:
     """Merge configuration dictionaries.
 
     Args:
@@ -370,7 +370,7 @@ def merge_configs(default: Dict[str, Any], override: Optional[Dict[str, Any]]) -
 
 
 # Default configuration values
-DEFAULT_CONFIG: Dict[str, Any] = {
+DEFAULT_CONFIG: dict[str, Any] = {
     "max_iterations": 5,
     "consensus_threshold": 0.7,  # Lowered from 0.8 to better handle paraphrased answers
     "timeout_seconds": 60,

@@ -1,26 +1,27 @@
 """Tests for LangChain and LlamaIndex integrations."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from maven.hallucination_detector import HallucinationReport
 from maven.integrations import (
-    # LangChain
-    MAVENCallbackHandler,
-    MAVENChain,
-    MAVENRetriever,
-    # LlamaIndex
-    MAVENQueryEngine,
-    MAVENResponseEvaluator,
-    MAVENResponse,
     # Common
     HallucinationCheckResult,
     HallucinationError,
+    # LangChain
+    MAVENCallbackHandler,
+    MAVENChain,
+    # LlamaIndex
+    MAVENQueryEngine,
+    MAVENResponse,
+    MAVENResponseEvaluator,
+    MAVENRetriever,
     # Factory functions
     create_langchain_callback,
     wrap_langchain_chain,
     wrap_llamaindex_engine,
 )
-from maven.hallucination_detector import HallucinationReport
 
 
 class TestHallucinationCheckResult:
@@ -234,7 +235,7 @@ class TestMAVENRetriever:
 
         # Detector should not be called
         with patch.object(retriever.detector, "detect") as mock_detect:
-            docs = retriever.get_relevant_documents("Test")
+            retriever.get_relevant_documents("Test")
             mock_detect.assert_not_called()
 
 
@@ -274,9 +275,11 @@ class TestMAVENQueryEngine:
         mock_report.confidence_score = 20.0
         mock_report.flags = ["Fabricated"]
 
-        with patch.object(engine.detector, "detect", return_value=mock_report):
-            with pytest.raises(HallucinationError):
-                engine.query("Test")
+        with (
+            patch.object(engine.detector, "detect", return_value=mock_report),
+            pytest.raises(HallucinationError),
+        ):
+            engine.query("Test")
 
 
 class TestMAVENResponse:

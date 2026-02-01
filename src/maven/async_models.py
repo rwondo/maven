@@ -61,8 +61,8 @@ class AsyncClaudeModel(AsyncModelInterface):
                 if not api_key:
                     raise ValueError("ANTHROPIC_API_KEY not set")
                 self._client = anthropic.AsyncAnthropic(api_key=api_key)
-            except ImportError:
-                raise ImportError("anthropic package not installed")
+            except ImportError as err:
+                raise ImportError("anthropic package not installed") from err
         return self._client
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -97,8 +97,8 @@ class AsyncGPTModel(AsyncModelInterface):
                 if not api_key:
                     raise ValueError("OPENAI_API_KEY not set")
                 self._client = openai.AsyncOpenAI(api_key=api_key)
-            except ImportError:
-                raise ImportError("openai package not installed")
+            except ImportError as err:
+                raise ImportError("openai package not installed") from err
         return self._client
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -134,8 +134,8 @@ class AsyncGeminiModel(AsyncModelInterface):
                     raise ValueError("GOOGLE_API_KEY not set")
                 genai.configure(api_key=api_key)
                 self._model = genai.GenerativeModel(self.model_id)
-            except ImportError:
-                raise ImportError("google-generativeai package not installed")
+            except ImportError as err:
+                raise ImportError("google-generativeai package not installed") from err
         return self._model
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -185,8 +185,10 @@ class AsyncTogetherModel(AsyncModelInterface):
                     api_key=api_key,
                     base_url="https://api.together.xyz/v1",
                 )
-            except ImportError:
-                raise ImportError("openai package not installed (required for Together AI)")
+            except ImportError as err:
+                raise ImportError(
+                    "openai package not installed (required for Together AI)"
+                ) from err
         return self._client
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
@@ -211,7 +213,7 @@ class AsyncMockModel(AsyncModelInterface):
         self.responses = responses or {}
         self.call_count = 0
 
-    async def generate(self, prompt: str, role: str) -> str:
+    async def generate(self, prompt: str, role: str) -> str:  # noqa: ARG002
         """Return mock response."""
         self.call_count += 1
 
@@ -222,7 +224,7 @@ class AsyncMockModel(AsyncModelInterface):
 
 
 # Import aliases from models module
-from maven.models import TOGETHER_MODEL_ALIASES, resolve_model_alias
+from maven.models import TOGETHER_MODEL_ALIASES, resolve_model_alias  # noqa: E402
 
 
 def create_async_model(model_id: str) -> AsyncModelInterface:

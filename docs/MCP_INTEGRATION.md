@@ -145,7 +145,7 @@ def handle_request(request):
     """Handle incoming MCP requests."""
     method = request.get("method")
     params = request.get("params", {})
-    
+
     if method == "tools/list":
         return {
             "tools": [
@@ -162,17 +162,17 @@ def handle_request(request):
                 }
             ]
         }
-    
+
     elif method == "tools/call":
         tool_name = params.get("name")
         arguments = params.get("arguments", {})
-        
+
         if tool_name == "verify_medical_claim":
             claim = arguments.get("claim", "")
             # Your verification logic here
             result = verify_against_medical_database(claim)
             return {"content": [{"type": "text", "text": result}]}
-    
+
     return {"error": "Unknown method"}
 
 def verify_against_medical_database(claim):
@@ -240,13 +240,13 @@ def list_tools():
 @app.route("/tools/<tool_name>", methods=["POST"])
 def call_tool(tool_name):
     data = request.json
-    
+
     if tool_name == "verify_citation":
         citation = data.get("citation", "")
         # Your verification logic
         result = check_citation_database(citation)
         return jsonify({"result": result})
-    
+
     return jsonify({"error": "Unknown tool"}), 404
 
 def check_citation_database(citation):

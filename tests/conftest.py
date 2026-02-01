@@ -5,14 +5,12 @@ This module provides reusable fixtures for testing without
 making actual API calls.
 """
 
-import pytest
-from typing import Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
-from maven.models import ModelInterface, MockModel
-from maven.consensus import ConsensusResult, TraceStep, ModelResponse
-from maven.roles import Role
+import pytest
 
+from maven.consensus import ConsensusResult, ModelResponse, TraceStep
+from maven.models import MockModel
 
 # ---------------------------------------------------------------------------
 # Mock Model Fixtures
@@ -20,13 +18,13 @@ from maven.roles import Role
 
 
 @pytest.fixture
-def mock_model_ids() -> List[str]:
+def mock_model_ids() -> list[str]:
     """Provide standard mock model identifiers."""
     return ["mock-model-1", "mock-model-2", "mock-model-3"]
 
 
 @pytest.fixture
-def mock_models() -> List[MockModel]:
+def mock_models() -> list[MockModel]:
     """Provide configured mock model instances."""
     return [
         MockModel(
@@ -57,7 +55,7 @@ def mock_models() -> List[MockModel]:
 
 
 @pytest.fixture
-def disagreeing_mock_models() -> List[MockModel]:
+def disagreeing_mock_models() -> list[MockModel]:
     """Provide mock models that disagree for testing dissent handling."""
     return [
         MockModel(
@@ -93,7 +91,7 @@ def disagreeing_mock_models() -> List[MockModel]:
 
 
 @pytest.fixture
-def sample_responses() -> List[ModelResponse]:
+def sample_responses() -> list[ModelResponse]:
     """Provide sample model responses for testing."""
     return [
         ModelResponse(
@@ -115,7 +113,7 @@ def sample_responses() -> List[ModelResponse]:
 
 
 @pytest.fixture
-def sample_trace() -> List[TraceStep]:
+def sample_trace() -> list[TraceStep]:
     """Provide sample trace steps for testing."""
     return [
         TraceStep(
@@ -181,7 +179,7 @@ def mock_orchestrator(mock_model_ids):
 
 
 @pytest.fixture
-def default_config() -> Dict:
+def default_config() -> dict:
     """Provide default configuration for testing."""
     return {
         "max_iterations": 3,
@@ -193,7 +191,7 @@ def default_config() -> Dict:
 
 
 @pytest.fixture
-def strict_config() -> Dict:
+def strict_config() -> dict:
     """Provide strict configuration requiring high consensus."""
     return {
         "max_iterations": 5,
@@ -272,7 +270,7 @@ def mock_env_vars(monkeypatch):
 
 
 @pytest.fixture
-def sample_queries() -> List[str]:
+def sample_queries() -> list[str]:
     """Provide sample test queries."""
     return [
         "What is the capital of France?",

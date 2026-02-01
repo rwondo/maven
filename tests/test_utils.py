@@ -4,8 +4,6 @@ Tests for MAVEN utility functions.
 Tests the enhanced similarity calculation and structured answer extraction.
 """
 
-import pytest
-
 from maven.utils import (
     calculate_similarity,
     extract_key_claims,

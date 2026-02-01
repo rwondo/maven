@@ -72,31 +72,30 @@ __version__ = "1.0.0"  # Production-ready release
 __author__ = "Arber Ferra"
 
 # Primary API
-from maven.hallucination_detector import HallucinationDetector, HallucinationReport
+from maven.consensus import ConsensusDetector, ConsensusResult, VerificationResult
+
+# Domain-specific prompts
+from maven.hallucination_detector import DOMAIN_PROMPTS, HallucinationDetector, HallucinationReport
 
 # MCP Server Integration
 from maven.mcp_integration import (
+    HTTPMCPServer,
     MCPServer,
     MCPServerRegistry,
     StdioMCPServer,
-    HTTPMCPServer,
     create_mcp_server,
 )
-
-# Domain-specific prompts
-from maven.hallucination_detector import DOMAIN_PROMPTS
+from maven.models import ModelInterface
 
 # Experimental features (consensus-based generation - not recommended)
 from maven.orchestrator import ConsensusOrchestrator, VerificationOrchestrator
-from maven.consensus import ConsensusResult, ConsensusDetector, VerificationResult
-from maven.models import ModelInterface
 from maven.roles import RolePrompts
 
 # Async support
 try:
-    from maven.async_orchestrator import AsyncConsensusOrchestrator
-    from maven.async_models import AsyncModelInterface
     from maven.async_hallucination_detector import AsyncHallucinationDetector
+    from maven.async_models import AsyncModelInterface
+    from maven.async_orchestrator import AsyncConsensusOrchestrator
 
     _async_available = True
 except ImportError:
@@ -105,17 +104,17 @@ except ImportError:
 # Framework integrations (optional)
 try:
     from maven.integrations import (
-        # LangChain
-        MAVENCallbackHandler,
-        MAVENChain,
-        MAVENRetriever,
-        # LlamaIndex
-        MAVENQueryEngine,
-        MAVENResponseEvaluator,
-        MAVENResponse,
         # Common
         HallucinationCheckResult,
         HallucinationError,
+        # LangChain
+        MAVENCallbackHandler,
+        MAVENChain,
+        # LlamaIndex
+        MAVENQueryEngine,
+        MAVENResponse,
+        MAVENResponseEvaluator,
+        MAVENRetriever,
         # Factory functions
         create_langchain_callback,
         wrap_langchain_chain,

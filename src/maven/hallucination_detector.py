@@ -12,12 +12,12 @@ Key features:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
-from maven.consensus import TraceStep, VerificationResult
-from maven.models import ModelInterface, create_model
+from maven.consensus import TraceStep
 from maven.mcp_integration import MCPServerRegistry, create_mcp_server
-from maven.utils import generate_trace_id, get_timestamp, merge_configs, DEFAULT_CONFIG
+from maven.models import ModelInterface, create_model
+from maven.utils import DEFAULT_CONFIG, generate_trace_id, get_timestamp, merge_configs
 
 logger = logging.getLogger(__name__)
 
@@ -31,23 +31,23 @@ class HallucinationReport:
     confidence_score: float  # 0-100, higher = more confident answer is accurate
 
     # Specific hallucination flags
-    flags: List[str]  # Specific issues detected
+    flags: list[str]  # Specific issues detected
     consistency_score: float  # How well models agree (0-100)
 
     # Detailed checks
-    fact_checks: List[Dict[str, Any]]  # Results from fact verification
-    citation_checks: List[Dict[str, Any]]  # Results from citation verification
-    logic_checks: List[Dict[str, Any]]  # Results from logical consistency checks
+    fact_checks: list[dict[str, Any]]  # Results from fact verification
+    citation_checks: list[dict[str, Any]]  # Results from citation verification
+    logic_checks: list[dict[str, Any]]  # Results from logical consistency checks
 
     # Supporting evidence
-    model_responses: List[str]  # What each model said
-    disagreements: List[str]  # Where models disagreed
+    model_responses: list[str]  # What each model said
+    disagreements: list[str]  # Where models disagreed
 
     # Trace and metadata
-    trace: List[TraceStep]
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    trace: list[TraceStep]
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary format."""
         return {
             "risk_level": self.risk_level,
@@ -137,9 +137,9 @@ class HallucinationDetector:
 
     def __init__(
         self,
-        models: List[str],
-        config: Optional[Dict[str, Any]] = None,
-        mcp_servers: Optional[List[Dict[str, Any]]] = None,
+        models: list[str],
+        config: Optional[dict[str, Any]] = None,
+        mcp_servers: Optional[list[dict[str, Any]]] = None,
         rate_limit_delay: float = 1.0,
     ):
         """Initialize hallucination detector.
@@ -172,8 +172,8 @@ class HallucinationDetector:
 
         self.model_ids = models
         self.config = merge_configs(DEFAULT_CONFIG, config)
-        self._models: Dict[str, ModelInterface] = {}
-        self._trace: List[TraceStep] = []
+        self._models: dict[str, ModelInterface] = {}
+        self._trace: list[TraceStep] = []
         self._rate_limit_delay = rate_limit_delay
         self._last_call_time: float = 0
 
@@ -235,7 +235,7 @@ class HallucinationDetector:
 
         return content
 
-    def _extract_mcp_tool_calls(self, text: str) -> List[Dict[str, Any]]:
+    def _extract_mcp_tool_calls(self, text: str) -> list[dict[str, Any]]:
         """Extract MCP tool calls from model output.
 
         Looks for patterns like:
@@ -274,7 +274,7 @@ class HallucinationDetector:
 
         return tool_calls
 
-    def _execute_mcp_tools(self, tool_calls: List[Dict[str, Any]]) -> str:
+    def _execute_mcp_tools(self, tool_calls: list[dict[str, Any]]) -> str:
         """Execute tool calls via MCP servers."""
         if not tool_calls:
             return ""
@@ -536,10 +536,10 @@ CONFIDENCE: [High/Medium/Low]"""
 
     def detect_batch(
         self,
-        items: List[Dict[str, str]],
+        items: list[dict[str, str]],
         domain: Optional[str] = None,
         progress_callback: Optional[callable] = None,
-    ) -> List[HallucinationReport]:
+    ) -> list[HallucinationReport]:
         """Detect hallucinations in a batch of query-answer pairs.
 
         Args:
@@ -596,7 +596,7 @@ CONFIDENCE: [High/Medium/Low]"""
         query: str,
         answer: str,
         domain: Optional[str] = None,
-        threshold: List[str] = None,
+        threshold: list[str] = None,
     ) -> bool:
         """Quick check if an answer is likely a hallucination.
 
@@ -620,6 +620,6 @@ CONFIDENCE: [High/Medium/Low]"""
         report = self.detect(query, answer, domain)
         return report.risk_level in threshold
 
-    def get_trace(self) -> List[TraceStep]:
+    def get_trace(self) -> list[TraceStep]:
         """Get the detection trace from the last run."""
         return self._trace.copy()

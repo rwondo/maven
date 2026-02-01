@@ -7,16 +7,15 @@ that can run model calls in parallel for improved performance.
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
+from maven.async_models import AsyncModelInterface, create_async_model
 from maven.consensus import (
     ConsensusDetector,
     ConsensusResult,
     ModelResponse,
     TraceStep,
 )
-from maven.models import ModelInterface
-from maven.async_models import create_async_model, AsyncModelInterface
 from maven.roles import Role, RolePrompts
 from maven.utils import (
     DEFAULT_CONFIG,
@@ -46,8 +45,8 @@ class AsyncConsensusOrchestrator:
 
     def __init__(
         self,
-        models: List[str],
-        config: Optional[Dict[str, Any]] = None,
+        models: list[str],
+        config: Optional[dict[str, Any]] = None,
     ):
         """Initialize async orchestrator.
 
@@ -59,9 +58,9 @@ class AsyncConsensusOrchestrator:
 
         self.model_ids = models
         self.config = merge_configs(DEFAULT_CONFIG, config)
-        self._models: Dict[str, AsyncModelInterface] = {}
-        self._trace: List[TraceStep] = []
-        self._current_roles: Dict[str, Role] = {}
+        self._models: dict[str, AsyncModelInterface] = {}
+        self._trace: list[TraceStep] = []
+        self._current_roles: dict[str, Role] = {}
 
         logger.info(f"Initialized AsyncConsensusOrchestrator with {len(models)} models")
 
@@ -71,7 +70,7 @@ class AsyncConsensusOrchestrator:
             self._models[model_id] = create_async_model(model_id)
         return self._models[model_id]
 
-    def _assign_roles(self) -> Dict[str, Role]:
+    def _assign_roles(self) -> dict[str, Role]:
         """Randomly assign roles to models."""
         import random
 
@@ -118,7 +117,7 @@ class AsyncConsensusOrchestrator:
         query: str,
         iteration: int,
         context: str = "",
-    ) -> List[ModelResponse]:
+    ) -> list[ModelResponse]:
         """Run iteration with parallel initial calls where possible.
 
         Note: Full parallelization isn't possible because Skeptic needs
@@ -165,7 +164,7 @@ class AsyncConsensusOrchestrator:
         self,
         query: str,
         max_iterations: Optional[int] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Optional[dict[str, Any]] = None,  # noqa: ARG002
     ) -> ConsensusResult:
         """Run async verification protocol.
 
@@ -190,7 +189,7 @@ class AsyncConsensusOrchestrator:
         detector = ConsensusDetector(threshold=self.config["consensus_threshold"])
 
         iteration_context = ""
-        final_responses: List[ModelResponse] = []
+        final_responses: list[ModelResponse] = []
 
         for iteration in range(1, max_iter + 1):
             logger.info(f"Async iteration {iteration}/{max_iter}")
@@ -250,10 +249,10 @@ class AsyncConsensusOrchestrator:
 
     async def verify_batch(
         self,
-        queries: List[str],
+        queries: list[str],
         max_iterations: Optional[int] = None,
         max_concurrent: int = 3,
-    ) -> List[ConsensusResult]:
+    ) -> list[ConsensusResult]:
         """Verify multiple queries with controlled concurrency.
 
         Args:
