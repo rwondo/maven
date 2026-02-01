@@ -352,8 +352,8 @@ if "fabricated facts" in " ".join(report.flags).lower():
 ## Documentation
 
 - [Quick Start Guide](docs/QUICKSTART.md) - Get running in 5 minutes
+- [MCP Integration Guide](docs/MCP_INTEGRATION.md) - Connect external verification tools
 - [Architecture Overview](docs/ARCHITECTURE.md) - System design deep-dive
-- [Protocol Specification](docs/SPECIFICATION.md) - Formal protocol definition
 - [API Reference](docs/API.md) - Complete API documentation
 
 ## Installation
@@ -432,8 +432,6 @@ detector = HallucinationDetector(
 )
 ```
 
-See [example_hallucination_detection.py](example_hallucination_detection.py) for a complete working example.
-
 ## Why Multiple Models?
 
 Hallucination detection requires **diverse perspectives**:
@@ -471,12 +469,21 @@ Areas where we especially need help:
 
 ## Roadmap
 
-- [x] **v0.2**: Hallucination detection system with 100% critical detection rate
-- [x] **v0.3**: Improved detection from 38.9% to 85.3%, reduced FP rate from 50% to 4%
-- [x] **v0.4**: Async/parallel detection for batch processing
+### Completed ✅
+
+- [x] **v0.2**: Hallucination detection with 100% critical detection rate
+- [x] **v0.3**: Detection improved from 38.9% → 85.3%
+- [x] **v0.4**: Async/parallel batch processing
 - [x] **v0.5**: Domain-specific detection (medical, legal, financial)
-- [x] **v0.6**: Integration with popular LLM frameworks (LangChain, LlamaIndex)
-- [x] **v1.0**: Production-ready with comprehensive benchmarks across domains ✅
+- [x] **v0.6**: LangChain & LlamaIndex integration
+- [x] **v1.0**: Production-ready release
+
+### Future Plans
+
+- [ ] Local model support via Ollama
+- [ ] Streaming detection for real-time applications
+- [ ] Custom verification rule engine
+- [ ] Pre-trained domain classifiers
 
 ## Research & Background
 
