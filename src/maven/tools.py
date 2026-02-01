@@ -95,7 +95,10 @@ class WikipediaSearchTool(Tool):
         """
         try:
             import wikipediaapi
-            wiki = wikipediaapi.Wikipedia('MAVEN/1.0', 'en')
+            wiki = wikipediaapi.Wikipedia(
+                user_agent='MAVEN/1.0 (https://github.com/rwondo/maven; hallucination-detection)',
+                language='en'
+            )
 
             page = wiki.page(query)
 

@@ -1,7 +1,25 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(git branch:*)",
+      "Bash(ls:*)",
+      "Bash(pytest:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(twine check:*)",
+      "Bash(tee:*)",
+      "Bash(if [ -f .env ])",
+      "Bash(then cat .env)",
+      "Bash(else echo \".env not found\")",
+      "Bash(fi)",
+      "Bash(wmic process:*)",
+      "Bash(echo:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfeat: v0.2.0 - Pivot to hallucination detection\n\nBREAKING CHANGES:\n- Primary API changed from ConsensusOrchestrator to HallucinationDetector\n- Package focus shifted from answer generation to hallucination detection\n\nNew Features:\n- HallucinationDetector with 100% critical hallucination detection rate\n- Multi-layer verification: consistency, fact-checking, citation analysis\n- Tool integration for Wikipedia and calculator fact verification\n- Risk level scoring: LOW, MEDIUM, HIGH, CRITICAL\n\nResearch Findings:\n- Multi-agent consensus FAILS at generation \\(33-67% vs 100% baseline\\)\n- Multi-agent EXCELS at detection \\(100% critical detection\\)\n- Key insight: Multiple models better at finding flaws than creating answers\n\nDeprecated:\n- ConsensusOrchestrator \\(degrades accuracy\\)\n- VerificationOrchestrator \\(no improvement over baseline\\)\n- CollaborativeOrchestrator \\(67% vs 100% baseline\\)\n\nDocumentation:\n- Updated README with actual benchmark numbers\n- Updated API docs to prioritize HallucinationDetector\n- Comprehensive CHANGELOG for v0.2.0\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git tag:*)",
+      "Bash(git push:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
