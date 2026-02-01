@@ -18,6 +18,7 @@ from maven.roles import Role
 # Mock Model Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_model_ids() -> List[str]:
     """Provide standard mock model identifiers."""
@@ -28,21 +29,30 @@ def mock_model_ids() -> List[str]:
 def mock_models() -> List[MockModel]:
     """Provide configured mock model instances."""
     return [
-        MockModel("mock-model-1", responses={
-            "architect": "ANSWER: Test answer\nREASONING: Test reasoning\nCONFIDENCE: High",
-            "skeptic": "CONCERNS: None identified\nQUESTIONS: None",
-            "mediator": "PROPOSED CONSENSUS: Test answer is correct\nCONFIDENCE: High",
-        }),
-        MockModel("mock-model-2", responses={
-            "architect": "ANSWER: Test answer\nREASONING: Supporting logic\nCONFIDENCE: High",
-            "skeptic": "CONCERNS: Minor issue\nQUESTIONS: Can you clarify?",
-            "mediator": "PROPOSED CONSENSUS: Test answer confirmed\nCONFIDENCE: High",
-        }),
-        MockModel("mock-model-3", responses={
-            "architect": "ANSWER: Test answer\nREASONING: Additional support\nCONFIDENCE: Medium",
-            "skeptic": "CONCERNS: None\nQUESTIONS: None",
-            "mediator": "PROPOSED CONSENSUS: Agreement on test answer\nCONFIDENCE: High",
-        }),
+        MockModel(
+            "mock-model-1",
+            responses={
+                "architect": "ANSWER: Test answer\nREASONING: Test reasoning\nCONFIDENCE: High",
+                "skeptic": "CONCERNS: None identified\nQUESTIONS: None",
+                "mediator": "PROPOSED CONSENSUS: Test answer is correct\nCONFIDENCE: High",
+            },
+        ),
+        MockModel(
+            "mock-model-2",
+            responses={
+                "architect": "ANSWER: Test answer\nREASONING: Supporting logic\nCONFIDENCE: High",
+                "skeptic": "CONCERNS: Minor issue\nQUESTIONS: Can you clarify?",
+                "mediator": "PROPOSED CONSENSUS: Test answer confirmed\nCONFIDENCE: High",
+            },
+        ),
+        MockModel(
+            "mock-model-3",
+            responses={
+                "architect": "ANSWER: Test answer\nREASONING: Additional support\nCONFIDENCE: Medium",
+                "skeptic": "CONCERNS: None\nQUESTIONS: None",
+                "mediator": "PROPOSED CONSENSUS: Agreement on test answer\nCONFIDENCE: High",
+            },
+        ),
     ]
 
 
@@ -50,27 +60,37 @@ def mock_models() -> List[MockModel]:
 def disagreeing_mock_models() -> List[MockModel]:
     """Provide mock models that disagree for testing dissent handling."""
     return [
-        MockModel("mock-model-1", responses={
-            "architect": "ANSWER: Answer A\nREASONING: Reason A\nCONFIDENCE: High",
-            "skeptic": "CONCERNS: Disagree with this\nQUESTIONS: Why not B?",
-            "mediator": "PROPOSED CONSENSUS: Answer A\nCONFIDENCE: Medium",
-        }),
-        MockModel("mock-model-2", responses={
-            "architect": "ANSWER: Answer B\nREASONING: Reason B\nCONFIDENCE: High",
-            "skeptic": "CONCERNS: A is wrong\nQUESTIONS: Evidence?",
-            "mediator": "PROPOSED CONSENSUS: Answer B\nCONFIDENCE: Medium",
-        }),
-        MockModel("mock-model-3", responses={
-            "architect": "ANSWER: Answer A\nREASONING: Agree with A\nCONFIDENCE: High",
-            "skeptic": "CONCERNS: B seems off\nQUESTIONS: Source?",
-            "mediator": "PROPOSED CONSENSUS: Answer A with caveats\nCONFIDENCE: Low",
-        }),
+        MockModel(
+            "mock-model-1",
+            responses={
+                "architect": "ANSWER: Answer A\nREASONING: Reason A\nCONFIDENCE: High",
+                "skeptic": "CONCERNS: Disagree with this\nQUESTIONS: Why not B?",
+                "mediator": "PROPOSED CONSENSUS: Answer A\nCONFIDENCE: Medium",
+            },
+        ),
+        MockModel(
+            "mock-model-2",
+            responses={
+                "architect": "ANSWER: Answer B\nREASONING: Reason B\nCONFIDENCE: High",
+                "skeptic": "CONCERNS: A is wrong\nQUESTIONS: Evidence?",
+                "mediator": "PROPOSED CONSENSUS: Answer B\nCONFIDENCE: Medium",
+            },
+        ),
+        MockModel(
+            "mock-model-3",
+            responses={
+                "architect": "ANSWER: Answer A\nREASONING: Agree with A\nCONFIDENCE: High",
+                "skeptic": "CONCERNS: B seems off\nQUESTIONS: Source?",
+                "mediator": "PROPOSED CONSENSUS: Answer A with caveats\nCONFIDENCE: Low",
+            },
+        ),
     ]
 
 
 # ---------------------------------------------------------------------------
 # Response Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def sample_responses() -> List[ModelResponse]:
@@ -135,17 +155,21 @@ def sample_consensus_result(sample_trace) -> ConsensusResult:
 # Orchestrator Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_orchestrator(mock_model_ids):
     """Provide orchestrator with mocked model creation."""
     from maven import ConsensusOrchestrator
 
-    with patch('maven.orchestrator.create_model') as mock_create:
-        mock_create.side_effect = lambda mid: MockModel(mid, responses={
-            "architect": "ANSWER: Test\nREASONING: Test\nCONFIDENCE: High",
-            "skeptic": "CONCERNS: None\nQUESTIONS: None",
-            "mediator": "PROPOSED CONSENSUS: Test confirmed\nCONFIDENCE: High",
-        })
+    with patch("maven.orchestrator.create_model") as mock_create:
+        mock_create.side_effect = lambda mid: MockModel(
+            mid,
+            responses={
+                "architect": "ANSWER: Test\nREASONING: Test\nCONFIDENCE: High",
+                "skeptic": "CONCERNS: None\nQUESTIONS: None",
+                "mediator": "PROPOSED CONSENSUS: Test confirmed\nCONFIDENCE: High",
+            },
+        )
 
         orchestrator = ConsensusOrchestrator(models=mock_model_ids)
         yield orchestrator
@@ -154,6 +178,7 @@ def mock_orchestrator(mock_model_ids):
 # ---------------------------------------------------------------------------
 # Configuration Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def default_config() -> Dict:
@@ -182,10 +207,11 @@ def strict_config() -> Dict:
 # API Mock Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_anthropic_client():
     """Mock Anthropic API client."""
-    with patch('anthropic.Anthropic') as mock:
+    with patch("anthropic.Anthropic") as mock:
         client = MagicMock()
         mock.return_value = client
 
@@ -200,7 +226,7 @@ def mock_anthropic_client():
 @pytest.fixture
 def mock_openai_client():
     """Mock OpenAI API client."""
-    with patch('openai.OpenAI') as mock:
+    with patch("openai.OpenAI") as mock:
         client = MagicMock()
         mock.return_value = client
 
@@ -215,7 +241,7 @@ def mock_openai_client():
 @pytest.fixture
 def mock_gemini_model():
     """Mock Google Gemini model."""
-    with patch('google.generativeai.GenerativeModel') as mock:
+    with patch("google.generativeai.GenerativeModel") as mock:
         model = MagicMock()
         mock.return_value = model
 
@@ -231,6 +257,7 @@ def mock_gemini_model():
 # Environment Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def mock_env_vars(monkeypatch):
     """Set mock environment variables for API keys."""
@@ -242,6 +269,7 @@ def mock_env_vars(monkeypatch):
 # ---------------------------------------------------------------------------
 # Utility Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def sample_queries() -> List[str]:

@@ -28,9 +28,7 @@ class TestConsensusDetector:
     def test_check_consensus_insufficient_responses(self):
         """Returns no consensus with fewer than 2 responses."""
         detector = ConsensusDetector()
-        responses = [
-            ModelResponse(model="m1", role="architect", content="Answer")
-        ]
+        responses = [ModelResponse(model="m1", role="architect", content="Answer")]
 
         reached, confidence, dissent = detector.check_consensus(responses)
 
@@ -138,9 +136,7 @@ class TestConsensusResult:
 
     def test_result_to_dict(self):
         """ConsensusResult converts to dictionary."""
-        trace = [
-            TraceStep(iteration=1, role="architect", model="m1", content="Test")
-        ]
+        trace = [TraceStep(iteration=1, role="architect", model="m1", content="Test")]
         result = ConsensusResult(
             consensus="Answer",
             confidence=90.0,

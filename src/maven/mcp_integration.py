@@ -86,7 +86,7 @@ class StdioMCPServer(MCPServer):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
             )
 
             logger.info(f"Connected to MCP server: {self.name}")
@@ -102,12 +102,7 @@ class StdioMCPServer(MCPServer):
             import json
 
             # Send tools/list request
-            request = {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "tools/list",
-                "params": {}
-            }
+            request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
 
             self.process.stdin.write(json.dumps(request) + "\n")
             self.process.stdin.flush()
@@ -138,10 +133,7 @@ class StdioMCPServer(MCPServer):
                 "jsonrpc": "2.0",
                 "id": 2,
                 "method": "tools/call",
-                "params": {
-                    "name": tool_name,
-                    "arguments": params
-                }
+                "params": {"name": tool_name, "arguments": params},
             }
 
             self.process.stdin.write(json.dumps(request) + "\n")
@@ -156,9 +148,7 @@ class StdioMCPServer(MCPServer):
                 if content and isinstance(content, list):
                     # Extract text from content array
                     return "\n".join(
-                        item.get("text", str(item))
-                        for item in content
-                        if isinstance(item, dict)
+                        item.get("text", str(item)) for item in content if isinstance(item, dict)
                     )
                 return str(response["result"])
 
@@ -199,11 +189,7 @@ class HTTPMCPServer(MCPServer):
         try:
             import requests
 
-            response = requests.get(
-                f"{self.base_url}/health",
-                headers=self.headers,
-                timeout=5
-            )
+            response = requests.get(f"{self.base_url}/health", headers=self.headers, timeout=5)
 
             if response.status_code == 200:
                 logger.info(f"Connected to HTTP MCP server: {self.name}")
@@ -221,11 +207,7 @@ class HTTPMCPServer(MCPServer):
         try:
             import requests
 
-            response = requests.get(
-                f"{self.base_url}/tools",
-                headers=self.headers,
-                timeout=10
-            )
+            response = requests.get(f"{self.base_url}/tools", headers=self.headers, timeout=10)
 
             if response.status_code == 200:
                 tools = response.json().get("tools", [])
@@ -246,10 +228,7 @@ class HTTPMCPServer(MCPServer):
             import requests
 
             response = requests.post(
-                f"{self.base_url}/tools/{tool_name}",
-                json=params,
-                headers=self.headers,
-                timeout=30
+                f"{self.base_url}/tools/{tool_name}", json=params, headers=self.headers, timeout=30
             )
 
             if response.status_code == 200:
@@ -323,21 +302,21 @@ class MCPServerRegistry:
             if ":" in tool_name:  # Skip prefixed duplicates
                 continue
             tool_info = server.tools.get(tool_name, {})
-            tools.append({
-                "name": tool_name,
-                "server": server.name,
-                "description": tool_info.get("description", ""),
-                "full_name": f"{server.name}:{tool_name}"
-            })
+            tools.append(
+                {
+                    "name": tool_name,
+                    "server": server.name,
+                    "description": tool_info.get("description", ""),
+                    "full_name": f"{server.name}:{tool_name}",
+                }
+            )
         return tools
 
     def get_tools_description(self) -> str:
         """Get formatted description of all available tools."""
         descriptions = []
         for tool in self.list_tools():
-            descriptions.append(
-                f"- {tool['name']} ({tool['server']}): {tool['description']}"
-            )
+            descriptions.append(f"- {tool['name']} ({tool['server']}): {tool['description']}")
         return "\n".join(descriptions)
 
     def disconnect_all(self):
@@ -376,20 +355,18 @@ if __name__ == "__main__":
     # Example 1: Stdio MCP server (typical MCP setup)
     print("\nExample 1: Connecting to stdio MCP server")
     print("Config:")
-    print({
-        "type": "stdio",
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-wikipedia"]
-    })
+    print(
+        {
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-wikipedia"],
+        }
+    )
 
     # Example 2: HTTP MCP server
     print("\nExample 2: Connecting to HTTP MCP server")
     print("Config:")
-    print({
-        "type": "http",
-        "url": "https://api.example.com/mcp",
-        "api_key": "your-api-key"
-    })
+    print({"type": "http", "url": "https://api.example.com/mcp", "api_key": "your-api-key"})
 
     print("\n" + "=" * 70)
     print("See example_mcp_config.py for complete usage examples")

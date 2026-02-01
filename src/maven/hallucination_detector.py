@@ -59,7 +59,7 @@ class HallucinationReport:
             "logic_checks": self.logic_checks,
             "model_responses": self.model_responses,
             "disagreements": self.disagreements,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
 
@@ -73,8 +73,13 @@ DOMAIN_PROMPTS = {
             "Check for outdated medical guidelines",
         ],
         "risk_keywords": [
-            "according to a study", "research shows", "clinical trial",
-            "FDA approved", "treatment for", "cure for", "mg dosage"
+            "according to a study",
+            "research shows",
+            "clinical trial",
+            "FDA approved",
+            "treatment for",
+            "cure for",
+            "mg dosage",
         ],
     },
     "legal": {
@@ -85,8 +90,14 @@ DOMAIN_PROMPTS = {
             "Verify legal precedent accuracy",
         ],
         "risk_keywords": [
-            "v.", "vs.", "court ruled", "statute", "precedent",
-            "legal requirement", "under the law", "regulation"
+            "v.",
+            "vs.",
+            "court ruled",
+            "statute",
+            "precedent",
+            "legal requirement",
+            "under the law",
+            "regulation",
         ],
     },
     "financial": {
@@ -97,8 +108,14 @@ DOMAIN_PROMPTS = {
             "Verify market data accuracy",
         ],
         "risk_keywords": [
-            "ROI", "return", "investment", "SEC", "regulation",
-            "market cap", "earnings", "dividend"
+            "ROI",
+            "return",
+            "investment",
+            "SEC",
+            "regulation",
+            "market cap",
+            "earnings",
+            "dividend",
         ],
     },
 }
@@ -109,7 +126,7 @@ class HallucinationDetector:
 
     Uses multiple models to verify a response and flag potential hallucinations.
     Particularly valuable for high-stakes domains like law and medicine.
-    
+
     Features:
         - Multi-model consistency checking
         - Domain-specific verification (medical, legal, financial)
@@ -170,11 +187,14 @@ class HallucinationDetector:
                 if server:
                     self.mcp_registry.register_server(server)
 
-        logger.info(f"Initialized HallucinationDetector with {len(models)} models and {len(self.mcp_registry.servers)} MCP servers")
+        logger.info(
+            f"Initialized HallucinationDetector with {len(models)} models and {len(self.mcp_registry.servers)} MCP servers"
+        )
 
     def _rate_limit(self) -> None:
         """Apply rate limiting between API calls."""
         import time
+
         current_time = time.time()
         elapsed = current_time - self._last_call_time
         if elapsed < self._rate_limit_delay:
@@ -196,7 +216,7 @@ class HallucinationDetector:
         """Generate response and execute any tool calls via MCP servers."""
         # Apply rate limiting
         self._rate_limit()
-        
+
         model = self._get_model(model_id)
 
         try:
@@ -229,31 +249,28 @@ class HallucinationDetector:
         import re
 
         tool_calls = []
-        tool_matches = re.finditer(r'USE_TOOL:\s*([^\n]+)', text, re.IGNORECASE)
+        tool_matches = re.finditer(r"USE_TOOL:\s*([^\n]+)", text, re.IGNORECASE)
 
         for match in tool_matches:
             tool_name = match.group(1).strip()
             start_pos = match.end()
 
             # Extract parameters until next tool call or end
-            next_match = re.search(r'USE_TOOL:', text[start_pos:], re.IGNORECASE)
+            next_match = re.search(r"USE_TOOL:", text[start_pos:], re.IGNORECASE)
             if next_match:
-                params_text = text[start_pos:start_pos + next_match.start()]
+                params_text = text[start_pos : start_pos + next_match.start()]
             else:
                 params_text = text[start_pos:]
 
             # Extract parameter pairs
             params = {}
-            param_matches = re.finditer(r'(\w+):\s*([^\n]+)', params_text)
+            param_matches = re.finditer(r"(\w+):\s*([^\n]+)", params_text)
             for param_match in param_matches:
                 key = param_match.group(1).lower()
                 value = param_match.group(2).strip()
                 params[key] = value
 
-            tool_calls.append({
-                "tool": tool_name,
-                "params": params
-            })
+            tool_calls.append({"tool": tool_name, "params": params})
 
         return tool_calls
 
@@ -368,17 +385,17 @@ CONFIDENCE: [High/Medium/Low]"""
             logger.info(f"Running consistency check {i+1}/{len(self.model_ids)}")
 
             response = self._generate_with_tools(
-                model_id,
-                CONSISTENCY_PROMPT,
-                f"consistency_checker_{i}"
+                model_id, CONSISTENCY_PROMPT, f"consistency_checker_{i}"
             )
 
-            self._trace.append(TraceStep(
-                iteration=1,
-                role="consistency_checker",
-                model=model_id,
-                content=response,
-            ))
+            self._trace.append(
+                TraceStep(
+                    iteration=1,
+                    role="consistency_checker",
+                    model=model_id,
+                    content=response,
+                )
+            )
 
             model_responses.append(response)
 
@@ -389,52 +406,56 @@ CONFIDENCE: [High/Medium/Low]"""
             elif "VERDICT: UNRELIABLE" in response.upper():
                 verdict = "UNRELIABLE"
 
-            consistency_checks.append({
-                "model": model_id,
-                "verdict": verdict,
-                "response": response[:300]
-            })
+            consistency_checks.append(
+                {"model": model_id, "verdict": verdict, "response": response[:300]}
+            )
 
         # Fact check (use first model with tools)
         logger.info("Running fact check")
         fact_response = self._generate_with_tools(
-            self.model_ids[0],
-            FACT_CHECK_PROMPT,
-            "fact_checker"
+            self.model_ids[0], FACT_CHECK_PROMPT, "fact_checker"
         )
 
-        self._trace.append(TraceStep(
-            iteration=2,
-            role="fact_checker",
-            model=self.model_ids[0],
-            content=fact_response,
-        ))
+        self._trace.append(
+            TraceStep(
+                iteration=2,
+                role="fact_checker",
+                model=self.model_ids[0],
+                content=fact_response,
+            )
+        )
 
-        fact_checks.append({
-            "model": self.model_ids[0],
-            "response": fact_response[:500],
-            "tools_used": "[TOOL RESULTS]" in fact_response
-        })
+        fact_checks.append(
+            {
+                "model": self.model_ids[0],
+                "response": fact_response[:500],
+                "tools_used": "[TOOL RESULTS]" in fact_response,
+            }
+        )
 
         # Citation check (use second model)
         logger.info("Running citation check")
         citation_response = self._generate_with_tools(
             self.model_ids[1] if len(self.model_ids) > 1 else self.model_ids[0],
             CITATION_PROMPT,
-            "citation_checker"
+            "citation_checker",
         )
 
-        self._trace.append(TraceStep(
-            iteration=3,
-            role="citation_checker",
-            model=self.model_ids[1] if len(self.model_ids) > 1 else self.model_ids[0],
-            content=citation_response,
-        ))
+        self._trace.append(
+            TraceStep(
+                iteration=3,
+                role="citation_checker",
+                model=self.model_ids[1] if len(self.model_ids) > 1 else self.model_ids[0],
+                content=citation_response,
+            )
+        )
 
-        citation_checks.append({
-            "model": self.model_ids[1] if len(self.model_ids) > 1 else self.model_ids[0],
-            "response": citation_response[:500]
-        })
+        citation_checks.append(
+            {
+                "model": self.model_ids[1] if len(self.model_ids) > 1 else self.model_ids[0],
+                "response": citation_response[:500],
+            }
+        )
 
         # Analyze results
         flags = []
@@ -452,11 +473,17 @@ CONFIDENCE: [High/Medium/Low]"""
             disagreements.append(f"Models disagree on reliability: {verdicts}")
 
         # Check fact verification
-        if "FACTS_FAILED" in fact_response and "None" not in fact_response.split("FACTS_FAILED")[1][:100]:
+        if (
+            "FACTS_FAILED" in fact_response
+            and "None" not in fact_response.split("FACTS_FAILED")[1][:100]
+        ):
             flags.append("Fact verification failed for some claims")
 
         # Check citations
-        if "SUSPICIOUS" in citation_response and "None" not in citation_response.split("SUSPICIOUS")[1][:100]:
+        if (
+            "SUSPICIOUS" in citation_response
+            and "None" not in citation_response.split("SUSPICIOUS")[1][:100]
+        ):
             flags.append("Suspicious or unsourced citations detected")
 
         # Calculate scores
@@ -504,7 +531,7 @@ CONFIDENCE: [High/Medium/Low]"""
                 "domain": domain,
                 "models": self.model_ids,
                 "completed_at": get_timestamp(),
-            }
+            },
         )
 
     def detect_batch(
@@ -543,19 +570,21 @@ CONFIDENCE: [High/Medium/Low]"""
             except Exception as e:
                 logger.error(f"Error detecting item {i+1}/{total}: {e}")
                 # Create error report
-                results.append(HallucinationReport(
-                    risk_level="HIGH",
-                    confidence_score=0.0,
-                    flags=[f"Detection error: {str(e)}"],
-                    consistency_score=0.0,
-                    fact_checks=[],
-                    citation_checks=[],
-                    logic_checks=[],
-                    model_responses=[],
-                    disagreements=[],
-                    trace=[],
-                    metadata={"error": str(e), "query": query}
-                ))
+                results.append(
+                    HallucinationReport(
+                        risk_level="HIGH",
+                        confidence_score=0.0,
+                        flags=[f"Detection error: {str(e)}"],
+                        consistency_score=0.0,
+                        fact_checks=[],
+                        citation_checks=[],
+                        logic_checks=[],
+                        model_responses=[],
+                        disagreements=[],
+                        trace=[],
+                        metadata={"error": str(e), "query": query},
+                    )
+                )
 
             if progress_callback:
                 progress_callback(i + 1, total)
@@ -594,4 +623,3 @@ CONFIDENCE: [High/Medium/Low]"""
     def get_trace(self) -> List[TraceStep]:
         """Get the detection trace from the last run."""
         return self._trace.copy()
-

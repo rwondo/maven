@@ -26,17 +26,18 @@ logger = logging.getLogger(__name__)
 # LangChain Integration
 # ============================================================================
 
+
 @dataclass
 class HallucinationCheckResult:
     """Result of hallucination check for framework integrations."""
-    
+
     is_hallucination: bool
     risk_level: str
     confidence_score: float
     flags: List[str]
     original_output: str
     report: Optional[HallucinationReport] = None
-    
+
     def __bool__(self) -> bool:
         """Returns True if NOT a hallucination (safe to use)."""
         return not self.is_hallucination
@@ -95,9 +96,9 @@ class MAVENCallbackHandler:
         """Called when LLM finishes generating."""
         try:
             # Extract output text
-            if hasattr(response, 'generations') and response.generations:
+            if hasattr(response, "generations") and response.generations:
                 output = response.generations[0][0].text
-            elif hasattr(response, 'content'):
+            elif hasattr(response, "content"):
                 output = response.content
             else:
                 output = str(response)
@@ -120,8 +121,7 @@ class MAVENCallbackHandler:
                 logger.warning(f"Hallucination detected: {report.risk_level} risk")
                 if self.auto_block:
                     raise HallucinationError(
-                        f"Hallucination detected with {report.risk_level} risk level",
-                        report=report
+                        f"Hallucination detected with {report.risk_level} risk level", report=report
                     )
 
         except Exception as e:
@@ -294,15 +294,15 @@ class MAVENRetriever:
         # Check each document
         verified_docs = []
         for doc in docs:
-            content = doc.page_content if hasattr(doc, 'page_content') else str(doc)
+            content = doc.page_content if hasattr(doc, "page_content") else str(doc)
 
             report = self.detector.detect(query, content, self.domain)
 
             # Add verification metadata
-            if hasattr(doc, 'metadata'):
-                doc.metadata['maven_risk_level'] = report.risk_level
-                doc.metadata['maven_confidence'] = report.confidence_score
-                doc.metadata['maven_flags'] = report.flags
+            if hasattr(doc, "metadata"):
+                doc.metadata["maven_risk_level"] = report.risk_level
+                doc.metadata["maven_confidence"] = report.confidence_score
+                doc.metadata["maven_flags"] = report.flags
 
             verified_docs.append(doc)
 
@@ -312,6 +312,7 @@ class MAVENRetriever:
 # ============================================================================
 # LlamaIndex Integration
 # ============================================================================
+
 
 class MAVENQueryEngine:
     """LlamaIndex query engine wrapper with hallucination detection.
@@ -378,10 +379,7 @@ class MAVENQueryEngine:
         is_verified = report.risk_level not in self.risk_threshold
 
         if not is_verified and self.block_on_hallucination:
-            raise HallucinationError(
-                f"Hallucination detected: {report.risk_level}",
-                report=report
-            )
+            raise HallucinationError(f"Hallucination detected: {report.risk_level}", report=report)
 
         return MAVENResponse(
             response=response_text,
@@ -511,10 +509,8 @@ class MAVENResponseEvaluator:
 # Convenience Functions
 # ============================================================================
 
-def create_langchain_callback(
-    models: List[str],
-    **kwargs
-) -> MAVENCallbackHandler:
+
+def create_langchain_callback(models: List[str], **kwargs) -> MAVENCallbackHandler:
     """Create a LangChain callback handler.
 
     Args:
@@ -527,11 +523,7 @@ def create_langchain_callback(
     return MAVENCallbackHandler(models=models, **kwargs)
 
 
-def wrap_langchain_chain(
-    chain: Any,
-    models: List[str],
-    **kwargs
-) -> MAVENChain:
+def wrap_langchain_chain(chain: Any, models: List[str], **kwargs) -> MAVENChain:
     """Wrap a LangChain chain with hallucination detection.
 
     Args:
@@ -545,11 +537,7 @@ def wrap_langchain_chain(
     return MAVENChain(chain=chain, models=models, **kwargs)
 
 
-def wrap_llamaindex_engine(
-    query_engine: Any,
-    models: List[str],
-    **kwargs
-) -> MAVENQueryEngine:
+def wrap_llamaindex_engine(query_engine: Any, models: List[str], **kwargs) -> MAVENQueryEngine:
     """Wrap a LlamaIndex query engine with hallucination detection.
 
     Args:

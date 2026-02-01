@@ -74,6 +74,7 @@ class AsyncConsensusOrchestrator:
     def _assign_roles(self) -> Dict[str, Role]:
         """Randomly assign roles to models."""
         import random
+
         shuffled = self.model_ids.copy()
         random.shuffle(shuffled)
 
@@ -90,10 +91,7 @@ class AsyncConsensusOrchestrator:
             Role.SKEPTIC: Role.MEDIATOR,
             Role.MEDIATOR: Role.ARCHITECT,
         }
-        self._current_roles = {
-            model: rotation[role]
-            for model, role in self._current_roles.items()
-        }
+        self._current_roles = {model: rotation[role] for model, role in self._current_roles.items()}
 
     async def _generate_response(
         self,
@@ -150,12 +148,14 @@ class AsyncConsensusOrchestrator:
             response = await self._generate_response(model_id, role, prompt)
             responses.append(response)
 
-            self._trace.append(TraceStep(
-                iteration=iteration,
-                role=role.value,
-                model=model_id,
-                content=response.content,
-            ))
+            self._trace.append(
+                TraceStep(
+                    iteration=iteration,
+                    role=role.value,
+                    model=model_id,
+                    content=response.content,
+                )
+            )
 
             accumulated_context += f"\n\n[{role.value.upper()}] ({model_id}):\n{response.content}"
 
