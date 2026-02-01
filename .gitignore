@@ -49,6 +49,25 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Environment
+.env
+.env.local
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.claude/
+
+# Benchmark outputs (keep these out of repo)
+benchmark_*.txt
+*_benchmark*.json
+*_checkpoint*.json
+
 # Translations
 *.mo
 *.pot
