@@ -5,7 +5,7 @@ Get MAVEN running in 5 minutes to detect AI hallucinations.
 ## Installation
 
 ```bash
-pip install maven-protocol
+pip install maven
 ```
 
 Or install from source:
