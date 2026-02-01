@@ -1,6 +1,6 @@
 [project]
 name = "maven-protocol"
-version = "0.1.0"
+version = "0.2.0"
 description = "Multi-Agent Verification & Evaluation Network - Reduce AI hallucinations through multi-model adversarial consensus"
 authors = [{name = "rwondo", email = "noreply@github.com"}]
 license = {text = "MIT"}
