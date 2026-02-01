@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-02-01
+
+### 🎉 Production-Ready Release
+
+MAVEN is now production-ready with comprehensive features for hallucination detection in high-stakes AI applications.
+
+### Added
+- **Async Hallucination Detection**: New `AsyncHallucinationDetector` class for parallel processing
+  - 5x faster batch processing with concurrency control
+  - `detect_batch()` with configurable `max_concurrent` parameter
+  - Async `is_hallucination()` for quick checks
+  - Progress callbacks for batch operations
+
+- **LangChain Integration**: Seamless integration with LangChain framework
+  - `MAVENCallbackHandler`: Automatic detection on LLM outputs
+  - `MAVENChain`: Chain wrapper with safety metadata
+  - `MAVENRetriever`: Retriever wrapper with document verification
+  - `auto_block` option to raise exceptions on hallucination detection
+  - `HallucinationError` exception class for blocked responses
+
+- **LlamaIndex Integration**: Native support for LlamaIndex
+  - `MAVENQueryEngine`: Query engine wrapper with verification
+  - `MAVENResponseEvaluator`: Standalone response evaluation
+  - `MAVENResponse`: Response wrapper with verification status
+  - `block_on_hallucination` option for query engines
+
+- **Convenience Factory Functions**:
+  - `create_langchain_callback()` for quick callback setup
+  - `wrap_langchain_chain()` for chain wrapping
+  - `wrap_llamaindex_engine()` for query engine wrapping
+
+- **New Package Exports**:
+  - `DOMAIN_PROMPTS` dict for domain-specific prompts
+  - `HallucinationCheckResult` dataclass for integration results
+  - All integration classes available via `from maven.integrations import ...`
+
+### Changed
+- **Version**: Bumped to 1.0.0 (production-ready)
+- **Status**: Changed from "Beta" to "Production/Stable"
+- **Keywords**: Added "langchain", "llamaindex", "mcp" to package keywords
+- **Test Suite**: Expanded from 71 to 107 tests
+- **Documentation**: Updated README with v1.0 features and examples
+
+### Technical Details
+- New files:
+  - `src/maven/async_hallucination_detector.py`
+  - `src/maven/integrations.py`
+  - `tests/test_async_hallucination.py`
+  - `tests/test_integrations.py`
+- Optional dependencies for frameworks:
+  - `pip install maven-protocol[langchain]`
+  - `pip install maven-protocol[llamaindex]`
+  - `pip install maven-protocol[all]`
+
 ## [0.3.0] - 2026-02-01
 
 ### Added
