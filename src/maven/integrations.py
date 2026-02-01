@@ -88,13 +88,13 @@ class MAVENCallbackHandler:
         self._pending_input: Optional[str] = None
 
     def on_llm_start(
-        self, serialized: dict[str, Any], prompts: list[str], **kwargs  # noqa: ARG002
+        self, serialized: dict[str, Any], prompts: list[str], **kwargs: Any  # noqa: ARG002
     ) -> None:
         """Called when LLM starts generating."""
         if prompts:
             self._pending_input = prompts[0]
 
-    def on_llm_end(self, response: Any, **kwargs) -> None:  # noqa: ARG002
+    def on_llm_end(self, response: Any, **kwargs: Any) -> None:  # noqa: ARG002
         """Called when LLM finishes generating."""
         try:
             # Extract output text
@@ -131,7 +131,7 @@ class MAVENCallbackHandler:
                 raise
             logger.error(f"Error in hallucination detection callback: {e}")
 
-    def on_llm_error(self, error: Exception, **kwargs) -> None:  # noqa: ARG002
+    def on_llm_error(self, error: Exception, **kwargs: Any) -> None:  # noqa: ARG002
         """Called when LLM errors."""
         self._pending_input = None
 
@@ -195,7 +195,7 @@ class MAVENChain:
         self.domain = domain
         self.include_report = include_report
 
-    def invoke(self, inputs: dict[str, Any], **kwargs) -> dict[str, Any]:
+    def invoke(self, inputs: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         """Run chain with hallucination detection.
 
         Args:
@@ -235,7 +235,7 @@ class MAVENChain:
 
         return output_dict
 
-    def __call__(self, inputs: dict[str, Any], **kwargs) -> dict[str, Any]:
+    def __call__(self, inputs: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         """Alias for invoke()."""
         return self.invoke(inputs, **kwargs)
 
@@ -288,7 +288,7 @@ class MAVENRetriever:
         Returns:
             List of documents with verification metadata.
         """
-        docs = self.retriever.get_relevant_documents(query)
+        docs: list[Any] = self.retriever.get_relevant_documents(query)
 
         if not self.check_content:
             return docs
@@ -512,7 +512,7 @@ class MAVENResponseEvaluator:
 # ============================================================================
 
 
-def create_langchain_callback(models: list[str], **kwargs) -> MAVENCallbackHandler:
+def create_langchain_callback(models: list[str], **kwargs: Any) -> MAVENCallbackHandler:
     """Create a LangChain callback handler.
 
     Args:
@@ -525,7 +525,7 @@ def create_langchain_callback(models: list[str], **kwargs) -> MAVENCallbackHandl
     return MAVENCallbackHandler(models=models, **kwargs)
 
 
-def wrap_langchain_chain(chain: Any, models: list[str], **kwargs) -> MAVENChain:
+def wrap_langchain_chain(chain: Any, models: list[str], **kwargs: Any) -> MAVENChain:
     """Wrap a LangChain chain with hallucination detection.
 
     Args:
@@ -539,7 +539,7 @@ def wrap_langchain_chain(chain: Any, models: list[str], **kwargs) -> MAVENChain:
     return MAVENChain(chain=chain, models=models, **kwargs)
 
 
-def wrap_llamaindex_engine(query_engine: Any, models: list[str], **kwargs) -> MAVENQueryEngine:
+def wrap_llamaindex_engine(query_engine: Any, models: list[str], **kwargs: Any) -> MAVENQueryEngine:
     """Wrap a LlamaIndex query engine with hallucination detection.
 
     Args:

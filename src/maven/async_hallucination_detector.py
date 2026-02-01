@@ -148,24 +148,26 @@ CONFIDENCE: [High/Medium/Low in your assessment]"""
 
         responses = await asyncio.gather(*tasks, return_exceptions=True)
 
-        model_responses = []
-        consistency_checks = []
+        model_responses: list[str] = []
+        consistency_checks: list[dict[str, Any]] = []
 
         for _i, (model_id, response) in enumerate(zip(self.model_ids, responses)):
             if isinstance(response, Exception):
-                response = f"Error: {response}"
+                response_str = f"Error: {response}"
+            else:
+                response_str = str(response)
 
-            model_responses.append(response)
+            model_responses.append(response_str)
 
             # Parse verdict
             verdict = "QUESTIONABLE"
-            if "VERDICT: RELIABLE" in str(response).upper():
+            if "VERDICT: RELIABLE" in response_str.upper():
                 verdict = "RELIABLE"
-            elif "VERDICT: UNRELIABLE" in str(response).upper():
+            elif "VERDICT: UNRELIABLE" in response_str.upper():
                 verdict = "UNRELIABLE"
 
             consistency_checks.append(
-                {"model": model_id, "verdict": verdict, "response": str(response)[:300]}
+                {"model": model_id, "verdict": verdict, "response": response_str[:300]}
             )
 
             self._trace.append(
@@ -173,7 +175,7 @@ CONFIDENCE: [High/Medium/Low in your assessment]"""
                     iteration=1,
                     role="consistency_checker",
                     model=model_id,
-                    content=str(response),
+                    content=response_str,
                 )
             )
 
@@ -397,7 +399,7 @@ CONFIDENCE: [High/Medium/Low]"""
             ], max_concurrent=3)
         """
         semaphore = asyncio.Semaphore(max_concurrent)
-        results: list[Optional[HallucinationReport]] = [None] * len(items)
+        results_dict: dict[int, HallucinationReport] = {}
         completed = 0
 
         async def detect_with_limit(index: int, item: dict[str, str]) -> None:
@@ -409,10 +411,10 @@ CONFIDENCE: [High/Medium/Low]"""
 
                 try:
                     report = await self.detect(query, answer, item_domain)
-                    results[index] = report
+                    results_dict[index] = report
                 except Exception as e:
                     logger.error(f"Error detecting item {index + 1}: {e}")
-                    results[index] = HallucinationReport(
+                    results_dict[index] = HallucinationReport(
                         risk_level="HIGH",
                         confidence_score=0.0,
                         flags=[f"Detection error: {str(e)}"],
@@ -436,7 +438,8 @@ CONFIDENCE: [High/Medium/Low]"""
         # Run all with concurrency control
         await asyncio.gather(*tasks)
 
-        return results
+        # Convert dict to list in order
+        return [results_dict[i] for i in range(len(items))]
 
     async def is_hallucination(
         self,

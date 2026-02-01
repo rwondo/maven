@@ -12,6 +12,7 @@ Examples:
 """
 
 import logging
+import subprocess
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
@@ -58,7 +59,7 @@ class MCPServer(ABC):
         pass
 
     @abstractmethod
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Disconnect from the MCP server."""
         pass
 
@@ -71,7 +72,7 @@ class StdioMCPServer(MCPServer):
 
     def __init__(self, name: str, config: dict[str, Any]):
         super().__init__(name, config)
-        self.process = None
+        self.process: Optional[subprocess.Popen[str]] = None
         self.command = config.get("command")
         self.args = config.get("args", [])
 
@@ -101,6 +102,10 @@ class StdioMCPServer(MCPServer):
         try:
             import json
 
+            if self.process is None or self.process.stdin is None or self.process.stdout is None:
+                logger.error(f"Process not connected for {self.name}")
+                return []
+
             # Send tools/list request
             request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
 
@@ -112,7 +117,7 @@ class StdioMCPServer(MCPServer):
             response = json.loads(response_line)
 
             if "result" in response and "tools" in response["result"]:
-                tools = response["result"]["tools"]
+                tools: list[dict[str, Any]] = response["result"]["tools"]
                 for tool in tools:
                     self.tools[tool["name"]] = tool
                 logger.info(f"Discovered {len(tools)} tools from {self.name}")
@@ -128,6 +133,9 @@ class StdioMCPServer(MCPServer):
         """Execute tool by sending 'tools/call' request."""
         try:
             import json
+
+            if self.process is None or self.process.stdin is None or self.process.stdout is None:
+                return f"Error: Process not connected for {self.name}"
 
             request = {
                 "jsonrpc": "2.0",
@@ -161,7 +169,7 @@ class StdioMCPServer(MCPServer):
             logger.error(f"Failed to execute tool {tool_name} on {self.name}: {e}")
             return f"Error: {str(e)}"
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Terminate the MCP server process."""
         if self.process:
             self.process.terminate()
@@ -178,7 +186,7 @@ class HTTPMCPServer(MCPServer):
     def __init__(self, name: str, config: dict[str, Any]):
         super().__init__(name, config)
         self.base_url = config.get("url")
-        self.headers = config.get("headers", {})
+        self.headers: dict[str, str] = config.get("headers", {})
         self.api_key = config.get("api_key")
 
         if self.api_key:
@@ -210,7 +218,7 @@ class HTTPMCPServer(MCPServer):
             response = requests.get(f"{self.base_url}/tools", headers=self.headers, timeout=10)
 
             if response.status_code == 200:
-                tools = response.json().get("tools", [])
+                tools: list[dict[str, Any]] = response.json().get("tools", [])
                 for tool in tools:
                     self.tools[tool["name"]] = tool
                 logger.info(f"Discovered {len(tools)} tools from HTTP server {self.name}")
@@ -233,7 +241,7 @@ class HTTPMCPServer(MCPServer):
 
             if response.status_code == 200:
                 result = response.json()
-                return result.get("result", str(result))
+                return str(result.get("result", result))
 
             return f"Error: HTTP {response.status_code}"
 
@@ -241,11 +249,15 @@ class HTTPMCPServer(MCPServer):
             logger.error(f"Failed to execute tool {tool_name} via HTTP: {e}")
             return f"Error: {str(e)}"
 
+    def disconnect(self) -> None:
+        """Disconnect from the HTTP MCP server (no-op for HTTP)."""
+        logger.info(f"Disconnected from HTTP MCP server: {self.name}")
+
 
 class MCPServerRegistry:
     """Registry for managing multiple MCP servers."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.servers: dict[str, MCPServer] = {}
         self.all_tools: dict[str, tuple[MCPServer, str]] = {}  # tool_name -> (server, tool_name)
 
@@ -319,7 +331,7 @@ class MCPServerRegistry:
             descriptions.append(f"- {tool['name']} ({tool['server']}): {tool['description']}")
         return "\n".join(descriptions)
 
-    def disconnect_all(self):
+    def disconnect_all(self) -> None:
         """Disconnect from all MCP servers."""
         for server in self.servers.values():
             server.disconnect()

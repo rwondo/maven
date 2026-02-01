@@ -12,7 +12,7 @@ Key features:
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from maven.consensus import TraceStep
 from maven.mcp_integration import MCPServerRegistry, create_mcp_server
@@ -538,7 +538,7 @@ CONFIDENCE: [High/Medium/Low]"""
         self,
         items: list[dict[str, str]],
         domain: Optional[str] = None,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> list[HallucinationReport]:
         """Detect hallucinations in a batch of query-answer pairs.
 
@@ -596,7 +596,7 @@ CONFIDENCE: [High/Medium/Low]"""
         query: str,
         answer: str,
         domain: Optional[str] = None,
-        threshold: list[str] = None,
+        threshold: Optional[list[str]] = None,
     ) -> bool:
         """Quick check if an answer is likely a hallucination.
 
