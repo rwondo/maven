@@ -74,7 +74,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="maven",
         description="Multi-Agent Verification & Evaluation Network - "
-                    "Reduce AI hallucinations through multi-model consensus.",
+        "Reduce AI hallucinations through multi-model consensus.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -97,20 +97,23 @@ Environment Variables:
     )
 
     parser.add_argument(
-        "-m", "--models",
+        "-m",
+        "--models",
         default="claude-sonnet-4,gpt-4,gemini-pro",
         help="Comma-separated list of models (default: claude-sonnet-4,gpt-4,gemini-pro)",
     )
 
     parser.add_argument(
-        "-i", "--iterations",
+        "-i",
+        "--iterations",
         type=int,
         default=5,
         help="Maximum verification iterations (default: 5)",
     )
 
     parser.add_argument(
-        "-t", "--threshold",
+        "-t",
+        "--threshold",
         type=float,
         default=0.8,
         help="Consensus threshold 0.0-1.0 (default: 0.8)",
@@ -124,7 +127,8 @@ Environment Variables:
     )
 
     parser.add_argument(
-        "-c", "--config",
+        "-c",
+        "--config",
         help="Path to JSON configuration file",
     )
 
@@ -135,7 +139,8 @@ Environment Variables:
     )
 
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Show detailed trace output",
     )
@@ -148,13 +153,15 @@ Environment Variables:
 
     # Hallucination detection mode (recommended)
     parser.add_argument(
-        "-d", "--detect",
+        "-d",
+        "--detect",
         action="store_true",
         help="Use hallucination detection mode (recommended). Requires --answer flag.",
     )
 
     parser.add_argument(
-        "-a", "--answer",
+        "-a",
+        "--answer",
         help="The AI-generated answer to verify for hallucinations (use with --detect).",
     )
 
@@ -208,14 +215,16 @@ def format_detection_result(report, verbose: bool = False) -> str:
                 lines.append(f"  Model: {check.get('model', 'Unknown')}")
 
     lines.append("")
-    
+
     # Recommendation
     if report.risk_level in ["CRITICAL", "HIGH"]:
         lines.append("! RECOMMENDATION: Do NOT trust this answer. High risk of hallucination.")
     elif report.risk_level == "MEDIUM":
         lines.append("! RECOMMENDATION: Verify this answer independently before use.")
     else:
-        lines.append("* RECOMMENDATION: Answer appears reliable, but always verify critical claims.")
+        lines.append(
+            "* RECOMMENDATION: Answer appears reliable, but always verify critical claims."
+        )
 
     lines.append("")
     return "\n".join(lines)
@@ -272,11 +281,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.detect:
             if not args.answer:
                 print("Error: --answer is required with --detect mode", file=sys.stderr)
-                print("Usage: maven --detect --answer 'AI response' 'Your question'", file=sys.stderr)
+                print(
+                    "Usage: maven --detect --answer 'AI response' 'Your question'", file=sys.stderr
+                )
                 return 1
 
             if len(models) < 2:
-                print("Error: At least 2 models required for hallucination detection", file=sys.stderr)
+                print(
+                    "Error: At least 2 models required for hallucination detection", file=sys.stderr
+                )
                 return 1
 
             from maven import HallucinationDetector
@@ -305,7 +318,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         # Legacy consensus mode (not recommended)
         if len(models) < 3:
             print("Error: At least 3 models required for consensus", file=sys.stderr)
-            print("Tip: Use --detect mode for hallucination detection (only needs 2 models)", file=sys.stderr)
+            print(
+                "Tip: Use --detect mode for hallucination detection (only needs 2 models)",
+                file=sys.stderr,
+            )
             return 1
 
         # Create orchestrator

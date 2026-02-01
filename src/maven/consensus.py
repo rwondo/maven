@@ -35,7 +35,7 @@ class TraceStep:
         max_len = 100
         if len(self.content) <= max_len:
             return self.content
-        return self.content[:max_len - 3] + "..."
+        return self.content[: max_len - 3] + "..."
 
 
 @dataclass
@@ -157,7 +157,9 @@ class ConsensusDetector:
             for j in range(i + 1, len(all_claims)):
                 sim = calculate_similarity(all_claims[i][2], all_claims[j][2])
                 similarities.append((all_claims[i][0], all_claims[j][0], sim))
-                logger.debug(f"Similarity between {all_claims[i][0]} and {all_claims[j][0]}: {sim:.2f}")
+                logger.debug(
+                    f"Similarity between {all_claims[i][0]} and {all_claims[j][0]}: {sim:.2f}"
+                )
 
         if not similarities:
             return False, 0.0, None
@@ -183,7 +185,9 @@ class ConsensusDetector:
                     agreeing = {model_a, model_b}
                     for response in responses:
                         if response.model not in agreeing:
-                            logger.info(f"Partial consensus: {model_a} and {model_b} agree, {response.model} dissents")
+                            logger.info(
+                                f"Partial consensus: {model_a} and {model_b} agree, {response.model} dissents"
+                            )
                             return True, confidence, f"Dissent from {response.model}"
 
         logger.info("No consensus reached yet")

@@ -164,18 +164,16 @@ Complete the solution:"""
         # Step 1: Analyzer
         logger.info("Step 1/3: Initial analysis")
         analyzer_id = self.model_ids[0]
-        analysis = self._generate_with_tools(
-            analyzer_id,
-            ANALYZER_PROMPT,
-            "analyzer"
-        )
+        analysis = self._generate_with_tools(analyzer_id, ANALYZER_PROMPT, "analyzer")
 
-        self._trace.append(TraceStep(
-            iteration=1,
-            role="analyzer",
-            model=analyzer_id,
-            content=analysis,
-        ))
+        self._trace.append(
+            TraceStep(
+                iteration=1,
+                role="analyzer",
+                model=analyzer_id,
+                content=analysis,
+            )
+        )
 
         # Step 2: Extender (if we have at least 3 models)
         if len(self.model_ids) >= 3:
@@ -183,18 +181,16 @@ Complete the solution:"""
             extender_id = self.model_ids[1]
             extender_prompt = EXTENDER_PROMPT.format(previous_work=analysis)
 
-            extension = self._generate_with_tools(
-                extender_id,
-                extender_prompt,
-                "extender"
-            )
+            extension = self._generate_with_tools(extender_id, extender_prompt, "extender")
 
-            self._trace.append(TraceStep(
-                iteration=2,
-                role="extender",
-                model=extender_id,
-                content=extension,
-            ))
+            self._trace.append(
+                TraceStep(
+                    iteration=2,
+                    role="extender",
+                    model=extender_id,
+                    content=extension,
+                )
+            )
 
             previous_work = f"{analysis}\n\n---\n\n{extension}"
         else:
@@ -205,18 +201,16 @@ Complete the solution:"""
         synthesizer_id = self.model_ids[-1]
         synthesizer_prompt = SYNTHESIZER_PROMPT.format(previous_work=previous_work)
 
-        synthesis = self._generate_with_tools(
-            synthesizer_id,
-            synthesizer_prompt,
-            "synthesizer"
-        )
+        synthesis = self._generate_with_tools(synthesizer_id, synthesizer_prompt, "synthesizer")
 
-        self._trace.append(TraceStep(
-            iteration=3,
-            role="synthesizer",
-            model=synthesizer_id,
-            content=synthesis,
-        ))
+        self._trace.append(
+            TraceStep(
+                iteration=3,
+                role="synthesizer",
+                model=synthesizer_id,
+                content=synthesis,
+            )
+        )
 
         # Extract final answer
         final_answer = synthesis
