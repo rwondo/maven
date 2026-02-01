@@ -159,3 +159,7 @@ Thumbs.db
 .env.*.local
 api_keys.json
 secrets/
+
+# Benchmark outputs
+benchmark_output.txt
+benchmarks/results/*.json
