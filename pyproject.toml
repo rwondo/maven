@@ -1,7 +1,7 @@
 [project]
 name = "maven-ai"
 version = "1.0.0"
-description = "Multi-Agent Verification & Evaluation Network - Production-ready hallucination detection for high-stakes AI applications"
+description = "Multi-Agent Verification Engine - Production-ready hallucination detection for high-stakes AI applications"
 authors = [{name = "Arber Ferra", email = "ferraarber@gmail.com"}]
 license = {text = "MIT"}
 readme = "README.md"
