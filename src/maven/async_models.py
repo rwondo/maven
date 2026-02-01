@@ -8,7 +8,7 @@ for use with AsyncConsensusOrchestrator.
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Optional
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -51,7 +51,7 @@ class AsyncClaudeModel(AsyncModelInterface):
         self._client: Optional[object] = None
 
     @property
-    def client(self):
+    def client(self) -> Any:
         """Lazy initialization of async Anthropic client."""
         if self._client is None:
             try:
@@ -76,7 +76,7 @@ class AsyncClaudeModel(AsyncModelInterface):
             messages=[{"role": "user", "content": prompt}],
         )
 
-        return message.content[0].text
+        return str(message.content[0].text)
 
 
 class AsyncGPTModel(AsyncModelInterface):
@@ -87,7 +87,7 @@ class AsyncGPTModel(AsyncModelInterface):
         self._client: Optional[object] = None
 
     @property
-    def client(self):
+    def client(self) -> Any:
         """Lazy initialization of async OpenAI client."""
         if self._client is None:
             try:
@@ -112,7 +112,8 @@ class AsyncGPTModel(AsyncModelInterface):
             max_tokens=2048,
         )
 
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        return str(content) if content is not None else ""
 
 
 class AsyncGeminiModel(AsyncModelInterface):
@@ -123,7 +124,7 @@ class AsyncGeminiModel(AsyncModelInterface):
         self._model: Optional[object] = None
 
     @property
-    def model(self):
+    def model(self) -> Any:
         """Lazy initialization of Gemini model."""
         if self._model is None:
             try:
@@ -152,7 +153,7 @@ class AsyncGeminiModel(AsyncModelInterface):
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(None, lambda: self.model.generate_content(prompt))
 
-        return response.text
+        return str(response.text)
 
 
 class AsyncTogetherModel(AsyncModelInterface):
@@ -172,7 +173,7 @@ class AsyncTogetherModel(AsyncModelInterface):
         self._client: Optional[object] = None
 
     @property
-    def client(self):
+    def client(self) -> Any:
         """Lazy initialization of async Together AI client."""
         if self._client is None:
             try:
@@ -202,7 +203,8 @@ class AsyncTogetherModel(AsyncModelInterface):
             max_tokens=2048,
         )
 
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        return str(content) if content is not None else ""
 
 
 class AsyncMockModel(AsyncModelInterface):
@@ -218,7 +220,7 @@ class AsyncMockModel(AsyncModelInterface):
         self.call_count += 1
 
         if role in self.responses:
-            return self.responses[role]
+            return str(self.responses[role])
 
         return f"Async mock response from {self.model_id} as {role}"
 

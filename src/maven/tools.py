@@ -10,7 +10,7 @@ import json
 import logging
 import re
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -18,12 +18,12 @@ logger = logging.getLogger(__name__)
 class Tool(ABC):
     """Abstract base class for tools."""
 
-    def __init__(self, name: str, description: str):
+    def __init__(self, name: str, description: str) -> None:
         self.name = name
         self.description = description
 
     @abstractmethod
-    def execute(self, **kwargs) -> str:
+    def execute(self, **kwargs: Any) -> str:
         """Execute the tool with given parameters."""
         pass
 
@@ -34,13 +34,13 @@ class Tool(ABC):
 class CalculatorTool(Tool):
     """Tool for performing precise calculations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="calculator",
             description="Performs precise mathematical calculations. Use for arithmetic, algebra, etc.",
         )
 
-    def execute(self, expression: str) -> str:
+    def execute(self, **kwargs: Any) -> str:
         """Evaluate a mathematical expression.
 
         Args:
@@ -49,13 +49,14 @@ class CalculatorTool(Tool):
         Returns:
             Result as a string
         """
+        expression: str = kwargs.get("expression", "")
         import ast
         import math
         import operator
 
         try:
             # Safe operators mapping
-            operators = {
+            operators: dict[type, Callable[..., Any]] = {
                 ast.Add: operator.add,
                 ast.Sub: operator.sub,
                 ast.Mult: operator.mul,
@@ -68,7 +69,7 @@ class CalculatorTool(Tool):
             }
 
             # Safe functions mapping
-            safe_functions = {
+            safe_functions: dict[str, Callable[..., Any]] = {
                 "sqrt": math.sqrt,
                 "abs": abs,
                 "pow": pow,
@@ -86,7 +87,7 @@ class CalculatorTool(Tool):
             # Preprocess expression
             safe_expr = expression.replace("^", "**")
 
-            def _eval_node(node):
+            def _eval_node(node: ast.AST) -> Any:
                 """Safely evaluate an AST node."""
                 if isinstance(node, ast.Constant):  # Python 3.8+
                     return node.value
@@ -95,16 +96,16 @@ class CalculatorTool(Tool):
                 elif isinstance(node, ast.BinOp):
                     left = _eval_node(node.left)
                     right = _eval_node(node.right)
-                    op = operators.get(type(node.op))
-                    if op is None:
+                    op_func = operators.get(type(node.op))
+                    if op_func is None:
                         raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
-                    return op(left, right)
+                    return op_func(left, right)
                 elif isinstance(node, ast.UnaryOp):
                     operand = _eval_node(node.operand)
-                    op = operators.get(type(node.op))
-                    if op is None:
+                    op_func = operators.get(type(node.op))
+                    if op_func is None:
                         raise ValueError(f"Unsupported operator: {type(node.op).__name__}")
-                    return op(operand)
+                    return op_func(operand)
                 elif isinstance(node, ast.Call):
                     func_name = node.func.id if isinstance(node.func, ast.Name) else None
                     if func_name not in safe_functions:
@@ -135,13 +136,13 @@ class CalculatorTool(Tool):
 class WikipediaSearchTool(Tool):
     """Tool for searching Wikipedia for factual information."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="wikipedia",
             description="Searches Wikipedia for factual information about people, places, events, concepts.",
         )
 
-    def execute(self, query: str, sentences: int = 3) -> str:
+    def execute(self, **kwargs: Any) -> str:
         """Search Wikipedia and return summary.
 
         Args:
@@ -151,6 +152,8 @@ class WikipediaSearchTool(Tool):
         Returns:
             Wikipedia summary or error message
         """
+        query: str = kwargs.get("query", "")
+        sentences: int = kwargs.get("sentences", 3)
         try:
             import wikipediaapi
 
@@ -182,7 +185,7 @@ class WikipediaSearchTool(Tool):
 class FactCheckTool(Tool):
     """Tool for basic fact verification."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             name="fact_check",
             description="Verifies basic factual claims using simple rules and lookups.",
@@ -195,7 +198,7 @@ class FactCheckTool(Tool):
             "us_states": 50,
         }
 
-    def execute(self, claim: str) -> str:
+    def execute(self, **kwargs: Any) -> str:
         """Verify a factual claim.
 
         Args:
@@ -204,6 +207,7 @@ class FactCheckTool(Tool):
         Returns:
             Verification result
         """
+        claim: str = kwargs.get("claim", "")
         claim_lower = claim.lower()
 
         # Check for numerical claims
@@ -230,10 +234,10 @@ class FactCheckTool(Tool):
 class ToolRegistry:
     """Registry of available tools."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.tools: dict[str, Tool] = {}
 
-    def register(self, tool: Tool):
+    def register(self, tool: Tool) -> None:
         """Register a tool."""
         self.tools[tool.name] = tool
         logger.info(f"Registered tool: {tool.name}")
@@ -364,13 +368,13 @@ if __name__ == "__main__":
 
     calc = CalculatorTool()
     print("\n[Calculator Test]")
-    print(f"15 + 27 = {calc.execute('15 + 27')}")
-    print(f"sqrt(144) = {calc.execute('sqrt(144)')}")
+    print(f"15 + 27 = {calc.execute(expression='15 + 27')}")
+    print(f"sqrt(144) = {calc.execute(expression='sqrt(144)')}")
 
     print("\n[Fact Check Test]")
     fact = FactCheckTool()
-    print(fact.execute("There are 8 planets in our solar system"))
-    print(fact.execute("There are 9 planets in our solar system"))
+    print(fact.execute(claim="There are 8 planets in our solar system"))
+    print(fact.execute(claim="There are 9 planets in our solar system"))
 
     print("\n[Tool Call Extraction Test]")
     text = """

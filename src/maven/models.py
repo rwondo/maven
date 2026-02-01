@@ -8,7 +8,7 @@ for integrating various AI model providers.
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Any, Optional
 
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -63,7 +63,7 @@ class ClaudeModel(ModelInterface):
         self._client: Optional[object] = None
 
     @property
-    def client(self):
+    def client(self) -> Any:
         """Lazy initialization of Anthropic client."""
         if self._client is None:
             try:
@@ -88,7 +88,7 @@ class ClaudeModel(ModelInterface):
             messages=[{"role": "user", "content": prompt}],
         )
 
-        return message.content[0].text
+        return str(message.content[0].text)
 
 
 class GPTModel(ModelInterface):
@@ -104,7 +104,7 @@ class GPTModel(ModelInterface):
         self._client: Optional[object] = None
 
     @property
-    def client(self):
+    def client(self) -> Any:
         """Lazy initialization of OpenAI client."""
         if self._client is None:
             try:
@@ -129,7 +129,8 @@ class GPTModel(ModelInterface):
             max_tokens=2048,
         )
 
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        return str(content) if content is not None else ""
 
 
 class GeminiModel(ModelInterface):
@@ -145,7 +146,7 @@ class GeminiModel(ModelInterface):
         self._model: Optional[object] = None
 
     @property
-    def model(self):
+    def model(self) -> Any:
         """Lazy initialization of Gemini model."""
         if self._model is None:
             try:
@@ -167,7 +168,7 @@ class GeminiModel(ModelInterface):
 
         response = self.model.generate_content(prompt)
 
-        return response.text
+        return str(response.text)
 
 
 class TogetherModel(ModelInterface):
@@ -195,7 +196,7 @@ class TogetherModel(ModelInterface):
         self._client: Optional[object] = None
 
     @property
-    def client(self):
+    def client(self) -> Any:
         """Lazy initialization of Together AI client (OpenAI-compatible)."""
         if self._client is None:
             try:
@@ -225,7 +226,8 @@ class TogetherModel(ModelInterface):
             max_tokens=2048,
         )
 
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        return str(content) if content is not None else ""
 
 
 class MockModel(ModelInterface):
@@ -247,7 +249,7 @@ class MockModel(ModelInterface):
         self.call_count += 1
 
         if role in self.responses:
-            return self.responses[role]
+            return str(self.responses[role])
 
         return f"Mock response from {self.model_id} as {role}"
 

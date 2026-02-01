@@ -14,7 +14,7 @@ import argparse
 import json
 import logging
 import sys
-from typing import Optional
+from typing import Any, Optional
 
 from maven import ConsensusOrchestrator, __version__
 from maven.consensus import ConsensusResult
@@ -174,7 +174,7 @@ Environment Variables:
     return parser
 
 
-def format_detection_result(report, verbose: bool = False) -> str:
+def format_detection_result(report: Any, verbose: bool = False) -> str:
     """Format hallucination detection result for display."""
     lines = []
     lines.append("")
@@ -230,11 +230,12 @@ def format_detection_result(report, verbose: bool = False) -> str:
     return "\n".join(lines)
 
 
-def load_config(config_path: str) -> dict:
+def load_config(config_path: str) -> dict[str, Any]:
     """Load configuration from JSON file."""
     try:
         with open(config_path, encoding="utf-8") as f:
-            return json.load(f)
+            config: dict[str, Any] = json.load(f)
+            return config
     except FileNotFoundError:
         print(f"Error: Config file not found: {config_path}", file=sys.stderr)
         sys.exit(1)
