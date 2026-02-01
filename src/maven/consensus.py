@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 from maven.utils import (
     calculate_similarity,
     extract_key_claims,
+    extract_structured_answer,
     get_timestamp,
 )
 
@@ -70,6 +71,38 @@ class ConsensusResult:
 
 
 @dataclass
+class VerificationResult:
+    """Result of a verification process (new protocol)."""
+
+    verdict: str  # "ACCEPTED", "REJECTED", "UNCERTAIN"
+    answer: str  # The final answer
+    errors: List[str]  # List of errors found, empty if accepted
+    confidence: float  # 0-100
+    trace: List[TraceStep]
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert result to dictionary format."""
+        return {
+            "verdict": self.verdict,
+            "answer": self.answer,
+            "errors": self.errors,
+            "confidence": self.confidence,
+            "trace": [
+                {
+                    "iteration": step.iteration,
+                    "role": step.role,
+                    "model": step.model,
+                    "content": step.content,
+                    "timestamp": step.timestamp,
+                }
+                for step in self.trace
+            ],
+            "metadata": self.metadata,
+        }
+
+
+@dataclass
 class ModelResponse:
     """Response from a model during verification."""
 
@@ -96,6 +129,11 @@ class ConsensusDetector:
     ) -> tuple[bool, float, Optional[str]]:
         """Check if responses have reached consensus.
 
+        Uses enhanced similarity calculation that prioritizes:
+        - Structured answer extraction (ANSWER:, PROPOSED CONSENSUS:)
+        - Numerical value comparison
+        - Semantic text similarity
+
         Args:
             responses: List of model responses to analyze.
 
@@ -110,14 +148,16 @@ class ConsensusDetector:
         all_claims = []
         for response in responses:
             claims = extract_key_claims(response.content)
-            all_claims.append((response.model, claims))
+            all_claims.append((response.model, response.role, claims))
+            logger.debug(f"Extracted {len(claims)} claims from {response.model} ({response.role})")
 
         # Calculate pairwise similarities
         similarities = []
         for i in range(len(all_claims)):
             for j in range(i + 1, len(all_claims)):
-                sim = calculate_similarity(all_claims[i][1], all_claims[j][1])
+                sim = calculate_similarity(all_claims[i][2], all_claims[j][2])
                 similarities.append((all_claims[i][0], all_claims[j][0], sim))
+                logger.debug(f"Similarity between {all_claims[i][0]} and {all_claims[j][0]}: {sim:.2f}")
 
         if not similarities:
             return False, 0.0, None
@@ -126,12 +166,15 @@ class ConsensusDetector:
         avg_similarity = sum(s[2] for s in similarities) / len(similarities)
         confidence = avg_similarity * 100  # Convert to percentage
 
+        logger.info(f"Average similarity: {avg_similarity:.2f} (confidence: {confidence:.1f}%)")
+
         # Check for consensus
         if avg_similarity >= self.threshold:
             # Full consensus
+            logger.info("Full consensus reached")
             return True, confidence, None
 
-        # Check for 2/3 consensus
+        # Check for 2/3 consensus (partial agreement)
         if len(responses) >= 3:
             # Find if any two models agree strongly
             for model_a, model_b, sim in similarities:
@@ -140,15 +183,20 @@ class ConsensusDetector:
                     agreeing = {model_a, model_b}
                     for response in responses:
                         if response.model not in agreeing:
+                            logger.info(f"Partial consensus: {model_a} and {model_b} agree, {response.model} dissents")
                             return True, confidence, f"Dissent from {response.model}"
 
+        logger.info("No consensus reached yet")
         return False, confidence, None
 
     def extract_consensus_answer(self, responses: List[ModelResponse]) -> str:
         """Extract the consensus answer from responses.
 
-        Uses the mediator's proposed consensus if available,
-        otherwise synthesizes from all responses.
+        Uses enhanced structured answer extraction that prioritizes:
+        1. Mediator's proposed consensus
+        2. Architect's answer
+        3. Any structured answer from responses
+        4. First response content as fallback
 
         Args:
             responses: List of model responses.
@@ -156,34 +204,32 @@ class ConsensusDetector:
         Returns:
             The consensus answer string.
         """
-        # Look for mediator response first
+        # Priority 1: Look for mediator response
         for response in responses:
             if response.role.lower() == "mediator":
-                # Try to extract PROPOSED CONSENSUS section
-                content = response.content
-                if "PROPOSED CONSENSUS:" in content:
-                    idx = content.index("PROPOSED CONSENSUS:")
-                    consensus_section = content[idx + len("PROPOSED CONSENSUS:"):].strip()
-                    # Take until next section or end
-                    for marker in ["CONFIDENCE:", "\n\n"]:
-                        if marker in consensus_section:
-                            consensus_section = consensus_section.split(marker)[0].strip()
-                    return consensus_section
+                structured = extract_structured_answer(response.content)
+                if structured:
+                    logger.debug(f"Using mediator's consensus: {structured[:100]}...")
+                    return structured
 
-        # Fallback: use architect's answer
+        # Priority 2: Look for architect's answer
         for response in responses:
             if response.role.lower() == "architect":
-                content = response.content
-                if "ANSWER:" in content:
-                    idx = content.index("ANSWER:")
-                    answer_section = content[idx + len("ANSWER:"):].strip()
-                    for marker in ["REASONING:", "\n\n"]:
-                        if marker in answer_section:
-                            answer_section = answer_section.split(marker)[0].strip()
-                    return answer_section
+                structured = extract_structured_answer(response.content)
+                if structured:
+                    logger.debug(f"Using architect's answer: {structured[:100]}...")
+                    return structured
+
+        # Priority 3: Extract structured answer from any response
+        for response in responses:
+            structured = extract_structured_answer(response.content)
+            if structured:
+                logger.debug(f"Using structured answer from {response.role}: {structured[:100]}...")
+                return structured
 
         # Last resort: return first response content
         if responses:
+            logger.warning("No structured answer found, using raw first response")
             return responses[0].content
 
         return "No consensus reached"

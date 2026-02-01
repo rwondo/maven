@@ -2,7 +2,7 @@
 name = "maven-protocol"
 version = "0.1.0"
 description = "Multi-Agent Verification & Evaluation Network - Reduce AI hallucinations through multi-model adversarial consensus"
-authors = [{name = "Arber Ferra", email = "arber.ferra@example.com"}]
+authors = [{name = "rwondo", email = "noreply@github.com"}]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.9"
@@ -58,11 +58,11 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/arberferra/maven"
-Documentation = "https://github.com/arberferra/maven#readme"
-Repository = "https://github.com/arberferra/maven.git"
-Issues = "https://github.com/arberferra/maven/issues"
-Changelog = "https://github.com/arberferra/maven/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/rwondo/maven"
+Documentation = "https://github.com/rwondo/maven#readme"
+Repository = "https://github.com/rwondo/maven.git"
+Issues = "https://github.com/rwondo/maven/issues"
+Changelog = "https://github.com/rwondo/maven/blob/main/CHANGELOG.md"
 
 [project.scripts]
 maven = "maven.cli:main"
