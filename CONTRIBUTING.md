@@ -25,7 +25,7 @@ Thank you for your interest in contributing to MAVEN! This document provides gui
 
 3. **Add the upstream remote**:
    ```bash
-   git remote add upstream https://github.com/arberferra/maven.git
+   git remote add upstream https://github.com/rwondo/maven.git
    ```
 
 4. **Create a branch** for your changes:
