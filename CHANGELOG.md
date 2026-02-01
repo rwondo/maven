@@ -57,9 +57,9 @@ MAVEN is now production-ready with comprehensive features for hallucination dete
   - `tests/test_async_hallucination.py`
   - `tests/test_integrations.py`
 - Optional dependencies for frameworks:
-  - `pip install maven[langchain]`
-  - `pip install maven[llamaindex]`
-  - `pip install maven[all]`
+  - `pip install maven-ai[langchain]`
+  - `pip install maven-ai[llamaindex]`
+  - `pip install maven-ai[all]`
 
 ## [0.3.0] - 2026-02-01
 

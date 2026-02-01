@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![PyPI Version](https://img.shields.io/pypi/v/maven.svg)](https://pypi.org/project/maven/)
+[![PyPI Version](https://img.shields.io/pypi/v/maven-ai.svg)](https://pypi.org/project/maven-ai/)
 [![GitHub Stars](https://img.shields.io/github/stars/rwondo/maven?style=social)](https://github.com/rwondo/maven)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -44,7 +44,7 @@ MAVEN is for **detection, not generation**. Use a single model to generate answe
 ## Quick Start
 
 ```bash
-pip install maven
+pip install maven-ai
 ```
 
 ```python
@@ -360,7 +360,7 @@ if "fabricated facts" in " ".join(report.flags).lower():
 
 ### From PyPI (Recommended)
 ```bash
-pip install maven
+pip install maven-ai
 ```
 
 ### From Source
