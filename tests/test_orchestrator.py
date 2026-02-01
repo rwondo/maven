@@ -32,9 +32,7 @@ class TestOrchestratorInitialization:
     def test_init_fails_with_duplicate_models(self):
         """Orchestrator raises error with duplicate models."""
         with pytest.raises(ValueError, match="Duplicate"):
-            ConsensusOrchestrator(
-                models=["mock-model", "mock-model", "mock-model-2"]
-            )
+            ConsensusOrchestrator(models=["mock-model", "mock-model", "mock-model-2"])
 
     def test_init_with_custom_config(self):
         """Orchestrator accepts custom configuration."""
@@ -58,17 +56,13 @@ class TestRoleAssignment:
 
     def test_assign_roles_returns_three_roles(self):
         """Role assignment produces exactly three roles."""
-        orchestrator = ConsensusOrchestrator(
-            models=["mock-1", "mock-2", "mock-3"]
-        )
+        orchestrator = ConsensusOrchestrator(models=["mock-1", "mock-2", "mock-3"])
         roles = orchestrator._assign_roles()
         assert len(roles) == 3
 
     def test_assign_roles_includes_all_role_types(self):
         """All three role types are assigned."""
-        orchestrator = ConsensusOrchestrator(
-            models=["mock-1", "mock-2", "mock-3"]
-        )
+        orchestrator = ConsensusOrchestrator(models=["mock-1", "mock-2", "mock-3"])
         roles = orchestrator._assign_roles()
 
         role_values = set(roles.values())
@@ -77,9 +71,7 @@ class TestRoleAssignment:
 
     def test_role_rotation_changes_roles(self):
         """Role rotation changes model assignments."""
-        orchestrator = ConsensusOrchestrator(
-            models=["mock-1", "mock-2", "mock-3"]
-        )
+        orchestrator = ConsensusOrchestrator(models=["mock-1", "mock-2", "mock-3"])
         orchestrator._current_roles = orchestrator._assign_roles()
         original_roles = orchestrator._current_roles.copy()
 
@@ -110,18 +102,14 @@ class TestVerification:
 
     def test_verify_rejects_empty_query(self):
         """Verify raises error for empty query."""
-        orchestrator = ConsensusOrchestrator(
-            models=["mock-1", "mock-2", "mock-3"]
-        )
+        orchestrator = ConsensusOrchestrator(models=["mock-1", "mock-2", "mock-3"])
 
         with pytest.raises(ValueError, match="empty"):
             orchestrator.verify("")
 
     def test_verify_rejects_whitespace_query(self):
         """Verify raises error for whitespace-only query."""
-        orchestrator = ConsensusOrchestrator(
-            models=["mock-1", "mock-2", "mock-3"]
-        )
+        orchestrator = ConsensusOrchestrator(models=["mock-1", "mock-2", "mock-3"])
 
         with pytest.raises(ValueError, match="empty"):
             orchestrator.verify("   ")
@@ -140,17 +128,13 @@ class TestTraceGeneration:
 
     def test_get_trace_returns_list(self):
         """get_trace returns a list."""
-        orchestrator = ConsensusOrchestrator(
-            models=["mock-1", "mock-2", "mock-3"]
-        )
+        orchestrator = ConsensusOrchestrator(models=["mock-1", "mock-2", "mock-3"])
         trace = orchestrator.get_trace()
         assert isinstance(trace, list)
 
     def test_trace_is_copy(self):
         """get_trace returns a copy, not the original."""
-        orchestrator = ConsensusOrchestrator(
-            models=["mock-1", "mock-2", "mock-3"]
-        )
+        orchestrator = ConsensusOrchestrator(models=["mock-1", "mock-2", "mock-3"])
         trace1 = orchestrator.get_trace()
         trace2 = orchestrator.get_trace()
         assert trace1 is not trace2

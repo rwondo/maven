@@ -68,6 +68,7 @@ class ClaudeModel(ModelInterface):
         if self._client is None:
             try:
                 import anthropic
+
                 api_key = os.environ.get("ANTHROPIC_API_KEY")
                 if not api_key:
                     raise ValueError("ANTHROPIC_API_KEY environment variable not set")
@@ -108,6 +109,7 @@ class GPTModel(ModelInterface):
         if self._client is None:
             try:
                 import openai
+
                 api_key = os.environ.get("OPENAI_API_KEY")
                 if not api_key:
                     raise ValueError("OPENAI_API_KEY environment variable not set")
@@ -148,6 +150,7 @@ class GeminiModel(ModelInterface):
         if self._model is None:
             try:
                 import google.generativeai as genai
+
                 api_key = os.environ.get("GOOGLE_API_KEY")
                 if not api_key:
                     raise ValueError("GOOGLE_API_KEY environment variable not set")
@@ -197,6 +200,7 @@ class TogetherModel(ModelInterface):
         if self._client is None:
             try:
                 import openai
+
                 api_key = os.environ.get("TOGETHER_API_KEY")
                 if not api_key:
                     raise ValueError("TOGETHER_API_KEY environment variable not set")

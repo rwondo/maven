@@ -56,6 +56,7 @@ class AsyncClaudeModel(AsyncModelInterface):
         if self._client is None:
             try:
                 import anthropic
+
                 api_key = os.environ.get("ANTHROPIC_API_KEY")
                 if not api_key:
                     raise ValueError("ANTHROPIC_API_KEY not set")
@@ -91,6 +92,7 @@ class AsyncGPTModel(AsyncModelInterface):
         if self._client is None:
             try:
                 import openai
+
                 api_key = os.environ.get("OPENAI_API_KEY")
                 if not api_key:
                     raise ValueError("OPENAI_API_KEY not set")
@@ -126,6 +128,7 @@ class AsyncGeminiModel(AsyncModelInterface):
         if self._model is None:
             try:
                 import google.generativeai as genai
+
                 api_key = os.environ.get("GOOGLE_API_KEY")
                 if not api_key:
                     raise ValueError("GOOGLE_API_KEY not set")
@@ -143,13 +146,11 @@ class AsyncGeminiModel(AsyncModelInterface):
         so we run in executor.
         """
         import asyncio
+
         logger.debug(f"Async generating with Gemini ({self.model_id}) as {role}")
 
         loop = asyncio.get_event_loop()
-        response = await loop.run_in_executor(
-            None,
-            lambda: self.model.generate_content(prompt)
-        )
+        response = await loop.run_in_executor(None, lambda: self.model.generate_content(prompt))
 
         return response.text
 
@@ -176,6 +177,7 @@ class AsyncTogetherModel(AsyncModelInterface):
         if self._client is None:
             try:
                 import openai
+
                 api_key = os.environ.get("TOGETHER_API_KEY")
                 if not api_key:
                     raise ValueError("TOGETHER_API_KEY not set")

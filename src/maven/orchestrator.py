@@ -112,10 +112,7 @@ class ConsensusOrchestrator:
             Role.MEDIATOR: Role.ARCHITECT,
         }
 
-        self._current_roles = {
-            model: rotation[role]
-            for model, role in self._current_roles.items()
-        }
+        self._current_roles = {model: rotation[role] for model, role in self._current_roles.items()}
 
         logger.debug(f"Rotated roles: {self._current_roles}")
 
@@ -187,12 +184,14 @@ class ConsensusOrchestrator:
             responses.append(response)
 
             # Record trace
-            self._trace.append(TraceStep(
-                iteration=iteration,
-                role=role.value,
-                model=model_id,
-                content=content,
-            ))
+            self._trace.append(
+                TraceStep(
+                    iteration=iteration,
+                    role=role.value,
+                    model=model_id,
+                    content=content,
+                )
+            )
 
             # Update context for next role in this iteration
             accumulated_context += f"\n\n[{role.value.upper()}] ({model_id}):\n{content}"
@@ -420,12 +419,14 @@ class VerificationOrchestrator:
                 Role.PROPOSER,
             )
 
-            self._trace.append(TraceStep(
-                iteration=1,
-                role="proposer",
-                model=proposer_id,
-                content=proposed_answer,
-            ))
+            self._trace.append(
+                TraceStep(
+                    iteration=1,
+                    role="proposer",
+                    model=proposer_id,
+                    content=proposed_answer,
+                )
+            )
 
         # Step 2: Verify with multiple verifiers
         verifier_ids = self.model_ids[1:] if initial_answer else self.model_ids[1:-1]
@@ -446,12 +447,14 @@ class VerificationOrchestrator:
                 Role.VERIFIER,
             )
 
-            self._trace.append(TraceStep(
-                iteration=2,
-                role="verifier",
-                model=verifier_id,
-                content=verification,
-            ))
+            self._trace.append(
+                TraceStep(
+                    iteration=2,
+                    role="verifier",
+                    model=verifier_id,
+                    content=verification,
+                )
+            )
 
             verifications.append(verification)
 
@@ -473,12 +476,14 @@ class VerificationOrchestrator:
             Role.JUDGE,
         )
 
-        self._trace.append(TraceStep(
-            iteration=3,
-            role="judge",
-            model=judge_id,
-            content=judgment,
-        ))
+        self._trace.append(
+            TraceStep(
+                iteration=3,
+                role="judge",
+                model=judge_id,
+                content=judgment,
+            )
+        )
 
         # Extract verdict and answer
         verdict = "UNCERTAIN"

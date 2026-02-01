@@ -113,9 +113,7 @@ class TestEnhancedSimilarity:
     def test_verbose_vs_concise_same_answer(self):
         """High similarity even with different verbosity."""
         claims1 = ["ANSWER: 4"]
-        claims2 = [
-            "ANSWER: The sum of 2 and 2 is 4, based on standard arithmetic"
-        ]
+        claims2 = ["ANSWER: The sum of 2 and 2 is 4, based on standard arithmetic"]
         similarity = calculate_similarity(claims1, claims2)
         # Should be relatively high due to matching core answer
         assert similarity > 0.45  # Adjusted from 0.5 to reflect realistic performance

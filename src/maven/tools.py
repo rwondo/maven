@@ -37,7 +37,7 @@ class CalculatorTool(Tool):
     def __init__(self):
         super().__init__(
             name="calculator",
-            description="Performs precise mathematical calculations. Use for arithmetic, algebra, etc."
+            description="Performs precise mathematical calculations. Use for arithmetic, algebra, etc.",
         )
 
     def execute(self, expression: str) -> str:
@@ -52,7 +52,7 @@ class CalculatorTool(Tool):
         import ast
         import operator
         import math
-        
+
         try:
             # Safe operators mapping
             operators = {
@@ -66,26 +66,26 @@ class CalculatorTool(Tool):
                 ast.USub: operator.neg,
                 ast.UAdd: operator.pos,
             }
-            
+
             # Safe functions mapping
             safe_functions = {
-                'sqrt': math.sqrt,
-                'abs': abs,
-                'pow': pow,
-                'sin': math.sin,
-                'cos': math.cos,
-                'tan': math.tan,
-                'log': math.log,
-                'log10': math.log10,
-                'exp': math.exp,
-                'floor': math.floor,
-                'ceil': math.ceil,
-                'round': round,
+                "sqrt": math.sqrt,
+                "abs": abs,
+                "pow": pow,
+                "sin": math.sin,
+                "cos": math.cos,
+                "tan": math.tan,
+                "log": math.log,
+                "log10": math.log10,
+                "exp": math.exp,
+                "floor": math.floor,
+                "ceil": math.ceil,
+                "round": round,
             }
-            
+
             # Preprocess expression
-            safe_expr = expression.replace('^', '**')
-            
+            safe_expr = expression.replace("^", "**")
+
             def _eval_node(node):
                 """Safely evaluate an AST node."""
                 if isinstance(node, ast.Constant):  # Python 3.8+
@@ -113,15 +113,15 @@ class CalculatorTool(Tool):
                     return safe_functions[func_name](*args)
                 elif isinstance(node, ast.Name):
                     # Handle constants like pi, e
-                    if node.id == 'pi':
+                    if node.id == "pi":
                         return math.pi
-                    elif node.id == 'e':
+                    elif node.id == "e":
                         return math.e
                     raise ValueError(f"Unknown variable: {node.id}")
                 else:
                     raise ValueError(f"Unsupported expression type: {type(node).__name__}")
-            
-            tree = ast.parse(safe_expr, mode='eval')
+
+            tree = ast.parse(safe_expr, mode="eval")
             result = _eval_node(tree.body)
 
             logger.info(f"Calculator: {expression} = {result}")
@@ -138,7 +138,7 @@ class WikipediaSearchTool(Tool):
     def __init__(self):
         super().__init__(
             name="wikipedia",
-            description="Searches Wikipedia for factual information about people, places, events, concepts."
+            description="Searches Wikipedia for factual information about people, places, events, concepts.",
         )
 
     def execute(self, query: str, sentences: int = 3) -> str:
@@ -153,9 +153,10 @@ class WikipediaSearchTool(Tool):
         """
         try:
             import wikipediaapi
+
             wiki = wikipediaapi.Wikipedia(
-                user_agent='MAVEN/1.0 (https://github.com/rwondo/maven; hallucination-detection)',
-                language='en'
+                user_agent="MAVEN/1.0 (https://github.com/rwondo/maven; hallucination-detection)",
+                language="en",
             )
 
             page = wiki.page(query)
@@ -165,8 +166,8 @@ class WikipediaSearchTool(Tool):
                 return f"No Wikipedia page found for '{query}'. Try a more specific query."
 
             # Get summary (first few sentences)
-            summary = page.summary.split('.')[:sentences]
-            result = '. '.join(summary) + '.'
+            summary = page.summary.split(".")[:sentences]
+            result = ". ".join(summary) + "."
 
             logger.info(f"Wikipedia: Found info for '{query}'")
             return result
@@ -184,7 +185,7 @@ class FactCheckTool(Tool):
     def __init__(self):
         super().__init__(
             name="fact_check",
-            description="Verifies basic factual claims using simple rules and lookups."
+            description="Verifies basic factual claims using simple rules and lookups.",
         )
         # Simple fact database for common verifications
         self.facts = {
@@ -206,7 +207,7 @@ class FactCheckTool(Tool):
         claim_lower = claim.lower()
 
         # Check for numerical claims
-        numbers = re.findall(r'\d+', claim)
+        numbers = re.findall(r"\d+", claim)
 
         # Simple pattern matching for common facts
         if "planet" in claim_lower and "solar system" in claim_lower:
@@ -244,8 +245,7 @@ class ToolRegistry:
     def list_tools(self) -> List[Dict[str, str]]:
         """List all available tools."""
         return [
-            {"name": tool.name, "description": tool.description}
-            for tool in self.tools.values()
+            {"name": tool.name, "description": tool.description} for tool in self.tools.values()
         ]
 
     def get_tools_description(self) -> str:
@@ -280,36 +280,35 @@ def extract_tool_calls(text: str) -> List[Dict[str, Any]]:
     tool_calls = []
 
     # Pattern: USE_TOOL: <name>
-    tool_matches = re.finditer(r'USE_TOOL:\s*(\w+)', text, re.IGNORECASE)
+    tool_matches = re.finditer(r"USE_TOOL:\s*(\w+)", text, re.IGNORECASE)
 
     for match in tool_matches:
         tool_name = match.group(1).lower()
         start_pos = match.end()
 
         # Extract parameters until next tool call or end
-        next_match = re.search(r'USE_TOOL:', text[start_pos:], re.IGNORECASE)
+        next_match = re.search(r"USE_TOOL:", text[start_pos:], re.IGNORECASE)
         if next_match:
-            params_text = text[start_pos:start_pos + next_match.start()]
+            params_text = text[start_pos : start_pos + next_match.start()]
         else:
             params_text = text[start_pos:]
 
         # Extract parameter pairs (PARAM: value)
         params = {}
-        param_matches = re.finditer(r'(\w+):\s*([^\n]+)', params_text)
+        param_matches = re.finditer(r"(\w+):\s*([^\n]+)", params_text)
         for param_match in param_matches:
             key = param_match.group(1).lower()
             value = param_match.group(2).strip()
             params[key] = value
 
-        tool_calls.append({
-            "tool": tool_name,
-            "params": params
-        })
+        tool_calls.append({"tool": tool_name, "params": params})
 
     return tool_calls
 
 
-def execute_tool_calls(tool_calls: List[Dict[str, Any]], registry: ToolRegistry = default_registry) -> str:
+def execute_tool_calls(
+    tool_calls: List[Dict[str, Any]], registry: ToolRegistry = default_registry
+) -> str:
     """Execute tool calls and return results.
 
     Args:

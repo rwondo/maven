@@ -42,7 +42,7 @@ def truncate_text(text: str, max_length: int = 500) -> str:
     """
     if len(text) <= max_length:
         return text
-    return text[:max_length - 3] + "..."
+    return text[: max_length - 3] + "..."
 
 
 def extract_structured_answer(text: str) -> Optional[str]:
@@ -79,7 +79,7 @@ def extract_structured_answer(text: str) -> Optional[str]:
     for marker in markers:
         if marker in text:
             idx = text.index(marker)
-            answer_section = text[idx + len(marker):].strip()
+            answer_section = text[idx + len(marker) :].strip()
 
             # Find the earliest end marker
             earliest_end = len(answer_section)
@@ -107,8 +107,9 @@ def extract_numerical_values(text: str) -> List[float]:
         List of numerical values found.
     """
     import re
+
     # Match integers and floats (including negatives and decimals)
-    pattern = r'-?\d+\.?\d*'
+    pattern = r"-?\d+\.?\d*"
     matches = re.findall(pattern, text)
     return [float(m) for m in matches if m]
 
@@ -135,10 +136,10 @@ def extract_key_claims(text: str) -> List[str]:
     # Also extract sentences for additional context
     sentences = []
     text_copy = text
-    for delimiter in ['. ', '? ', '! ']:
-        text_copy = text_copy.replace(delimiter, '.|')
+    for delimiter in [". ", "? ", "! "]:
+        text_copy = text_copy.replace(delimiter, ".|")
 
-    raw_sentences = text_copy.split('.|')
+    raw_sentences = text_copy.split(".|")
     for sentence in raw_sentences:
         cleaned = sentence.strip()
         if cleaned and len(cleaned) > 10:
@@ -202,7 +203,7 @@ def calculate_similarity(claims1: List[str], claims2: List[str]) -> float:
             # Fall back to word overlap if not primarily numerical
             if structured_sim == 0.0:
                 # Remove common filler words before comparing
-                stopwords = {'the', 'is', 'a', 'an', 'it', 'this', 'that', 'equals', 'answer'}
+                stopwords = {"the", "is", "a", "an", "it", "this", "that", "equals", "answer"}
                 words1 = set(w for w in norm1.split() if w not in stopwords and len(w) > 1)
                 words2 = set(w for w in norm2.split() if w not in stopwords and len(w) > 1)
                 if words1 and words2:
@@ -223,16 +224,69 @@ def calculate_similarity(claims1: List[str], claims2: List[str]) -> float:
 
     # Strategy 3: Semantic text similarity (weight: 0.2)
     # Use enhanced word comparison with stopword filtering
-    stopwords = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-                 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'be',
-                 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
-                 'would', 'should', 'could', 'may', 'might', 'must', 'can', 'this',
-                 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they'}
+    stopwords = {
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "but",
+        "in",
+        "on",
+        "at",
+        "to",
+        "for",
+        "of",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "was",
+        "are",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "should",
+        "could",
+        "may",
+        "might",
+        "must",
+        "can",
+        "this",
+        "that",
+        "these",
+        "those",
+        "i",
+        "you",
+        "he",
+        "she",
+        "it",
+        "we",
+        "they",
+    }
 
-    words1 = set(w.lower() for claim in claims1 for w in claim.split()
-                 if w.lower() not in stopwords and len(w) > 2)
-    words2 = set(w.lower() for claim in claims2 for w in claim.split()
-                 if w.lower() not in stopwords and len(w) > 2)
+    words1 = set(
+        w.lower()
+        for claim in claims1
+        for w in claim.split()
+        if w.lower() not in stopwords and len(w) > 2
+    )
+    words2 = set(
+        w.lower()
+        for claim in claims2
+        for w in claim.split()
+        if w.lower() not in stopwords and len(w) > 2
+    )
 
     semantic_sim = 0.0
     if words1 and words2:
@@ -240,9 +294,9 @@ def calculate_similarity(claims1: List[str], claims2: List[str]) -> float:
 
     # Weighted combination with boost for strong matches
     weights = {
-        'structured': 0.6,  # Increased from 0.5
-        'numerical': 0.3,
-        'semantic': 0.1,    # Reduced from 0.2
+        "structured": 0.6,  # Increased from 0.5
+        "numerical": 0.3,
+        "semantic": 0.1,  # Reduced from 0.2
     }
 
     # Calculate weighted score
@@ -251,21 +305,21 @@ def calculate_similarity(claims1: List[str], claims2: List[str]) -> float:
 
     # Structured answer comparison (highest priority)
     if answer1 and answer2:
-        weighted_sum += structured_sim * weights['structured']
-        total_weight += weights['structured']
+        weighted_sum += structured_sim * weights["structured"]
+        total_weight += weights["structured"]
 
         # Boost: If both have numbers and they match, increase confidence
         if nums1 and nums2 and nums1_set & nums2_set:
-            weighted_sum += numerical_sim * weights['numerical']
-            total_weight += weights['numerical']
+            weighted_sum += numerical_sim * weights["numerical"]
+            total_weight += weights["numerical"]
     elif nums1 and nums2:
         # No structured answers, but we have numbers - prioritize numerical
         weighted_sum += numerical_sim * 0.7  # High weight for numerical-only comparison
         total_weight += 0.7
 
     # Always include semantic similarity (but with lower weight)
-    weighted_sum += semantic_sim * weights['semantic']
-    total_weight += weights['semantic']
+    weighted_sum += semantic_sim * weights["semantic"]
+    total_weight += weights["semantic"]
 
     if total_weight == 0.0:
         return 0.0
