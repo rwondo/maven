@@ -38,7 +38,7 @@ Experimental Features (not recommended for production):
     accuracy tasks. Multi-agent value is in hallucination DETECTION, not generation.
 """
 
-__version__ = "0.2.0"  # Updated for hallucination detection focus
+__version__ = "0.3.0"  # Updated for hallucination detection improvements
 __author__ = "Arber Ferra"
 
 # Primary API
