@@ -101,6 +101,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["scripts"]  # lets tests import scripts/evaluate_truthfulqa.py
 addopts = "--strict-markers"
 asyncio_mode = "auto"
 filterwarnings = [
