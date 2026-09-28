@@ -10,7 +10,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-from tenacity import retry, stop_after_attempt, wait_exponential
+from maven.models import API_RETRY, TOGETHER_MODEL_ALIASES, ModelConfigError, resolve_model_alias
 
 logger = logging.getLogger(__name__)
 
@@ -59,13 +59,13 @@ class AsyncClaudeModel(AsyncModelInterface):
 
                 api_key = os.environ.get("ANTHROPIC_API_KEY")
                 if not api_key:
-                    raise ValueError("ANTHROPIC_API_KEY not set")
+                    raise ModelConfigError(f"ANTHROPIC_API_KEY is not set (needed for model {self.model_id!r})")
                 self._client = anthropic.AsyncAnthropic(api_key=api_key)
             except ImportError as err:
-                raise ImportError("anthropic package not installed") from err
+                raise ModelConfigError("anthropic package not installed") from err
         return self._client
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @API_RETRY
     async def generate(self, prompt: str, role: str) -> str:
         """Generate response using async Claude API."""
         logger.debug(f"Async generating with Claude ({self.model_id}) as {role}")
@@ -95,13 +95,13 @@ class AsyncGPTModel(AsyncModelInterface):
 
                 api_key = os.environ.get("OPENAI_API_KEY")
                 if not api_key:
-                    raise ValueError("OPENAI_API_KEY not set")
+                    raise ModelConfigError(f"OPENAI_API_KEY is not set (needed for model {self.model_id!r})")
                 self._client = openai.AsyncOpenAI(api_key=api_key)
             except ImportError as err:
-                raise ImportError("openai package not installed") from err
+                raise ModelConfigError("openai package not installed") from err
         return self._client
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @API_RETRY
     async def generate(self, prompt: str, role: str) -> str:
         """Generate response using async OpenAI API."""
         logger.debug(f"Async generating with GPT ({self.model_id}) as {role}")
@@ -132,14 +132,14 @@ class AsyncGeminiModel(AsyncModelInterface):
 
                 api_key = os.environ.get("GOOGLE_API_KEY")
                 if not api_key:
-                    raise ValueError("GOOGLE_API_KEY not set")
+                    raise ModelConfigError(f"GOOGLE_API_KEY is not set (needed for model {self.model_id!r})")
                 genai.configure(api_key=api_key)
                 self._model = genai.GenerativeModel(self.model_id)
             except ImportError as err:
-                raise ImportError("google-generativeai package not installed") from err
+                raise ModelConfigError("google-generativeai package not installed") from err
         return self._model
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @API_RETRY
     async def generate(self, prompt: str, role: str) -> str:
         """Generate response using Gemini API.
 
@@ -181,18 +181,16 @@ class AsyncTogetherModel(AsyncModelInterface):
 
                 api_key = os.environ.get("TOGETHER_API_KEY")
                 if not api_key:
-                    raise ValueError("TOGETHER_API_KEY not set")
+                    raise ModelConfigError(f"TOGETHER_API_KEY is not set (needed for model {self.model_id!r})")
                 self._client = openai.AsyncOpenAI(
                     api_key=api_key,
                     base_url="https://api.together.xyz/v1",
                 )
             except ImportError as err:
-                raise ImportError(
-                    "openai package not installed (required for Together AI)"
-                ) from err
+                raise ModelConfigError("openai package not installed") from err
         return self._client
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @API_RETRY
     async def generate(self, prompt: str, role: str) -> str:
         """Generate response using async Together AI API."""
         logger.debug(f"Async generating with Together AI ({self.model_id}) as {role}")
@@ -224,9 +222,6 @@ class AsyncMockModel(AsyncModelInterface):
 
         return f"Async mock response from {self.model_id} as {role}"
 
-
-# Import aliases from models module
-from maven.models import TOGETHER_MODEL_ALIASES, resolve_model_alias  # noqa: E402
 
 
 def create_async_model(model_id: str) -> AsyncModelInterface:

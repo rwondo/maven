@@ -19,6 +19,7 @@ from typing import Optional
 
 from maven import __version__
 from maven.hallucination_detector import HallucinationDetector, HallucinationReport
+from maven.models import ModelConfigError
 
 DEFAULT_MODELS = "together/llama-3.1-8b,together/qwen-2.5-7b,together/mixtral-8x7b"
 EXIT_HIGH_RISK = 3
@@ -88,7 +89,7 @@ def format_report(report: HallucinationReport, verbose: bool = False) -> str:
     if report.risk_level in ("CRITICAL", "HIGH"):
         lines.append("Recommendation: do not rely on this answer without checking it.")
     elif report.risk_level == "MEDIUM":
-        lines.append("Recommendation: the reviewers were not unanimous; verify key claims.")
+        lines.append("Recommendation: not enough reviewers rated it RELIABLE; verify key claims.")
     else:
         lines.append("Recommendation: no problems found, but still verify anything important.")
     return "\n".join(lines)
@@ -105,7 +106,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     try:
         detector = HallucinationDetector(models=parse_models(args.models))
         report = detector.detect(query=args.query, answer=args.answer)
-    except ValueError as e:
+    except (ValueError, ModelConfigError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:

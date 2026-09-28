@@ -17,7 +17,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 from maven.async_hallucination_detector import AsyncHallucinationDetector
 from maven.hallucination_detector import HallucinationDetector, HallucinationReport, TraceStep
-from maven.models import ModelInterface, create_model
+from maven.models import ModelConfigError, ModelInterface, create_model
 
 try:
     __version__ = version("maven-ai")
@@ -28,6 +28,7 @@ __all__ = [
     "AsyncHallucinationDetector",
     "HallucinationDetector",
     "HallucinationReport",
+    "ModelConfigError",
     "ModelInterface",
     "TraceStep",
     "__version__",

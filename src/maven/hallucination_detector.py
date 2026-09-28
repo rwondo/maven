@@ -17,7 +17,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-from maven.models import ModelInterface, create_model
+from maven.models import ModelConfigError, ModelInterface, create_model
 from maven.utils import generate_trace_id, get_timestamp
 
 logger = logging.getLogger(__name__)
@@ -95,6 +95,7 @@ class TraceStep:
     model: str
     content: str
     timestamp: str = field(default_factory=get_timestamp)
+    error: Optional[str] = None  # set when the API call failed
 
     @property
     def summary(self) -> str:
@@ -161,17 +162,20 @@ def has_reported_items(text: str, label: str) -> bool:
 
 
 def calculate_risk(
-    verdicts: list[str], fact_response: str, citation_response: str
+    verdicts: list[str], fact_response: str, citation_response: str, failed_calls: int = 0
 ) -> tuple[str, float, list[str], list[str]]:
     """Turn parsed replies into (risk_level, reliable_share, flags, disagreements).
 
     Rules, checked in order:
         CRITICAL  2+ models said UNRELIABLE, or 2+ flags
-        HIGH      any flag (one UNRELIABLE vote counts as a flag)
+        HIGH      any flag (one UNRELIABLE vote or any failed API call counts as a flag)
         MEDIUM    fewer than 75% of models said RELIABLE
         LOW       otherwise
     """
     flags = []
+    if failed_calls:
+        total = len(verdicts) + 2
+        flags.append(f"{failed_calls}/{total} model calls failed, so the check is incomplete")
     unreliable = verdicts.count("UNRELIABLE")
     if unreliable:
         flags.append(f"{unreliable}/{len(verdicts)} models rated the answer UNRELIABLE")
@@ -206,9 +210,13 @@ def build_report(
     **extra_metadata: Any,
 ) -> HallucinationReport:
     """Assemble a report from the model calls of one run (shared by both detectors)."""
+    steps = [*reliability_steps, fact_step, citation_step]
     verdicts = [parse_verdict(step.content) for step in reliability_steps]
     risk_level, reliable_share, flags, disagreements = calculate_risk(
-        verdicts, fact_step.content, citation_step.content
+        verdicts,
+        fact_step.content,
+        citation_step.content,
+        failed_calls=sum(1 for step in steps if step.error),
     )
     logger.info(f"Detection complete: {risk_level} ({reliable_share:.0f}% reliable votes)")
 
@@ -221,7 +229,7 @@ def build_report(
         citation_checks=[{"model": citation_step.model, "response": citation_step.content[:500]}],
         model_responses=[step.content for step in reliability_steps],
         disagreements=disagreements,
-        trace=[*reliability_steps, fact_step, citation_step],
+        trace=steps,
         metadata={
             "trace_id": generate_trace_id(),
             "query": query,
@@ -285,13 +293,15 @@ class HallucinationDetector:
         return self._models[model_id]
 
     def _call(self, model_id: str, prompt: str, role: str) -> TraceStep:
-        """Run one model call; API errors become an "Error: ..." reply."""
+        """Run one model call. API errors are recorded on the step; setup errors raise."""
         self._rate_limit()
         try:
             content = self._get_model(model_id).generate(prompt, role)
+        except ModelConfigError:
+            raise
         except Exception as e:
             logger.error(f"Model {model_id} failed: {e}")
-            content = f"Error: {e}"
+            return TraceStep(role=role, model=model_id, content=f"Error: {e}", error=str(e))
         return TraceStep(role=role, model=model_id, content=content)
 
     def detect(self, query: str, answer: str) -> HallucinationReport:
@@ -318,6 +328,8 @@ class HallucinationDetector:
             query = item.get("query", "")
             try:
                 results.append(self.detect(query, item.get("answer", "")))
+            except ModelConfigError:
+                raise
             except Exception as e:
                 logger.error(f"Error detecting item {i + 1}/{len(items)}: {e}")
                 results.append(error_report(query, e))

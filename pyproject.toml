@@ -163,6 +163,10 @@ markers = [
     "integration: marks tests as integration tests",
 ]
 asyncio_mode = "auto"
+filterwarnings = [
+    # google-generativeai warns on import that it is no longer maintained (see README)
+    'ignore:\s*All support for the `google.generativeai` package has ended:FutureWarning',
+]
 
 [tool.coverage.run]
 source = ["src/maven"]

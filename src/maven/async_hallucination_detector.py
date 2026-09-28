@@ -20,6 +20,7 @@ from maven.hallucination_detector import (
     build_report,
     error_report,
 )
+from maven.models import ModelConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -77,14 +78,16 @@ class AsyncHallucinationDetector:
         return self._call_limiter
 
     async def _call(self, model_id: str, prompt: str, role: str) -> TraceStep:
-        """Run one model call; API errors become an "Error: ..." reply."""
+        """Run one model call. API errors are recorded on the step; setup errors raise."""
         async with self._limiter():
             await asyncio.sleep(self._rate_limit_delay)
             try:
                 content = await self._get_model(model_id).generate(prompt, role)
+            except ModelConfigError:
+                raise
             except Exception as e:
                 logger.error(f"Model {model_id} failed: {e}")
-                content = f"Error: {e}"
+                return TraceStep(role=role, model=model_id, content=f"Error: {e}", error=str(e))
         return TraceStep(role=role, model=model_id, content=content)
 
     async def detect(self, query: str, answer: str) -> HallucinationReport:
@@ -122,6 +125,8 @@ class AsyncHallucinationDetector:
             async with item_limiter:
                 try:
                     report = await self.detect(query, item.get("answer", ""))
+                except ModelConfigError:
+                    raise
                 except Exception as e:
                     logger.error(f"Error detecting item {index + 1}: {e}")
                     report = error_report(query, e)

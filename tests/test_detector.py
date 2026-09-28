@@ -1,5 +1,7 @@
 """Tests for the synchronous detector and the shared parsing and scoring rules."""
 
+import time
+
 import pytest
 
 from maven.hallucination_detector import (
@@ -8,7 +10,7 @@ from maven.hallucination_detector import (
     has_reported_items,
     parse_verdict,
 )
-from maven.models import MockModel
+from maven.models import MockModel, ModelConfigError
 
 R, Q, U = "RELIABLE", "QUESTIONABLE", "UNRELIABLE"
 NO_FACT_ISSUES = "FACTS_VERIFIED: the date\nFACTS_FAILED: None\nCONFIDENCE: High"
@@ -153,3 +155,36 @@ def test_is_hallucination_threshold(monkeypatch):
 
     assert detector.is_hallucination("Q", "A") is True
     assert detector.is_hallucination("Q", "A", threshold=["HIGH", "CRITICAL"]) is False
+
+
+class FailingModel(MockModel):
+    def generate(self, prompt: str, role: str) -> str:
+        raise TimeoutError("provider timed out")
+
+
+def test_failed_call_is_flagged_not_silent(monkeypatch):
+    models = {"m1": MockModel("m1", replies(R)), "m2": FailingModel("m2")}
+    monkeypatch.setattr("maven.hallucination_detector.create_model", lambda mid: models[mid])
+    detector = HallucinationDetector(models=["m1", "m2"], rate_limit_delay=0)
+
+    report = detector.detect("Q", "A")
+
+    assert "2/4 model calls failed, so the check is incomplete" in report.flags
+    assert report.risk_level in {"HIGH", "CRITICAL"}
+    assert [s.error for s in report.trace if s.model == "m2"] == ["provider timed out"] * 2
+
+
+def test_missing_api_key_raises_immediately(no_api_keys):
+    detector = HallucinationDetector(models=["together/llama-3.1-8b", "together/qwen-2.5-7b"])
+
+    start = time.monotonic()
+    with pytest.raises(ModelConfigError, match="TOGETHER_API_KEY is not set"):
+        detector.detect("Q", "A")
+    assert time.monotonic() - start < 1.0
+
+
+def test_batch_stops_on_setup_errors(no_api_keys):
+    detector = HallucinationDetector(models=["together/llama-3.1-8b", "together/qwen-2.5-7b"])
+
+    with pytest.raises(ModelConfigError):
+        detector.detect_batch([{"query": "Q", "answer": "A"}] * 3)

@@ -10,9 +10,27 @@ import os
 from abc import ABC, abstractmethod
 from typing import Any, Optional
 
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_not_exception_type, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
+
+
+class ModelConfigError(RuntimeError):
+    """A model cannot be used because of local setup: a missing API key or package.
+
+    Retrying cannot fix this, so it is raised immediately instead of being
+    retried or turned into an "Error: ..." reply.
+    """
+
+
+# Retry transient API failures (rate limits, timeouts) up to 3 times, waiting 2s, 4s, ...
+# up to 10s between attempts. reraise=True surfaces the provider's own error at the end.
+API_RETRY = retry(
+    retry=retry_if_not_exception_type(ModelConfigError),
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    reraise=True,
+)
 
 
 class ModelInterface(ABC):
@@ -71,13 +89,13 @@ class ClaudeModel(ModelInterface):
 
                 api_key = os.environ.get("ANTHROPIC_API_KEY")
                 if not api_key:
-                    raise ValueError("ANTHROPIC_API_KEY environment variable not set")
+                    raise ModelConfigError(f"ANTHROPIC_API_KEY is not set (needed for model {self.model_id!r})")
                 self._client = anthropic.Anthropic(api_key=api_key)
             except ImportError as err:
-                raise ImportError("anthropic package not installed") from err
+                raise ModelConfigError("anthropic package not installed") from err
         return self._client
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @API_RETRY
     def generate(self, prompt: str, role: str) -> str:
         """Generate response using Claude API."""
         logger.debug(f"Generating with Claude ({self.model_id}) as {role}")
@@ -112,13 +130,13 @@ class GPTModel(ModelInterface):
 
                 api_key = os.environ.get("OPENAI_API_KEY")
                 if not api_key:
-                    raise ValueError("OPENAI_API_KEY environment variable not set")
+                    raise ModelConfigError(f"OPENAI_API_KEY is not set (needed for model {self.model_id!r})")
                 self._client = openai.OpenAI(api_key=api_key)
             except ImportError as err:
-                raise ImportError("openai package not installed") from err
+                raise ModelConfigError("openai package not installed") from err
         return self._client
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @API_RETRY
     def generate(self, prompt: str, role: str) -> str:
         """Generate response using OpenAI API."""
         logger.debug(f"Generating with GPT ({self.model_id}) as {role}")
@@ -154,14 +172,14 @@ class GeminiModel(ModelInterface):
 
                 api_key = os.environ.get("GOOGLE_API_KEY")
                 if not api_key:
-                    raise ValueError("GOOGLE_API_KEY environment variable not set")
+                    raise ModelConfigError(f"GOOGLE_API_KEY is not set (needed for model {self.model_id!r})")
                 genai.configure(api_key=api_key)
                 self._model = genai.GenerativeModel(self.model_id)
             except ImportError as err:
-                raise ImportError("google-generativeai package not installed") from err
+                raise ModelConfigError("google-generativeai package not installed") from err
         return self._model
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @API_RETRY
     def generate(self, prompt: str, role: str) -> str:
         """Generate response using Gemini API."""
         logger.debug(f"Generating with Gemini ({self.model_id}) as {role}")
@@ -204,18 +222,16 @@ class TogetherModel(ModelInterface):
 
                 api_key = os.environ.get("TOGETHER_API_KEY")
                 if not api_key:
-                    raise ValueError("TOGETHER_API_KEY environment variable not set")
+                    raise ModelConfigError(f"TOGETHER_API_KEY is not set (needed for model {self.model_id!r})")
                 self._client = openai.OpenAI(
                     api_key=api_key,
                     base_url="https://api.together.xyz/v1",
                 )
             except ImportError as err:
-                raise ImportError(
-                    "openai package not installed (required for Together AI)"
-                ) from err
+                raise ModelConfigError("openai package not installed") from err
         return self._client
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @API_RETRY
     def generate(self, prompt: str, role: str) -> str:
         """Generate response using Together AI API."""
         logger.debug(f"Generating with Together AI ({self.model_id}) as {role}")
