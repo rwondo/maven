@@ -52,11 +52,6 @@ Environment variables (set the ones for the providers you use):
         default=DEFAULT_MODELS,
         help=f"comma-separated reviewer models, at least 2 (default: {DEFAULT_MODELS})",
     )
-    parser.add_argument(
-        "--domain",
-        choices=["medical", "legal", "financial"],
-        help="domain context for the check",
-    )
     parser.add_argument("--json", action="store_true", help="print the full report as JSON")
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="show each model's reply and debug logs"
@@ -69,7 +64,8 @@ def format_report(report: HallucinationReport, verbose: bool = False) -> str:
     """Format a report for the terminal."""
     lines = [
         f"Risk level:     {report.risk_level}",
-        f"Reliable votes: {report.confidence_score:.0f}% of reviewer models",
+        f"Verdicts:       {', '.join(report.verdicts)}",
+        f"Reliable votes: {report.reliable_share:.0f}% of reviewer models",
     ]
 
     if report.flags:
@@ -108,7 +104,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     try:
         detector = HallucinationDetector(models=parse_models(args.models))
-        report = detector.detect(query=args.query, answer=args.answer, domain=args.domain)
+        report = detector.detect(query=args.query, answer=args.answer)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1

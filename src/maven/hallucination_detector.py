@@ -1,16 +1,19 @@
-"""Hallucination detection system for MAVEN.
+"""Multi-model hallucination checks.
 
-For high-stakes domains (law, medicine), detecting when AI is hallucinating
-is critical. This system uses multiple models to flag suspicious answers.
+One detection run sends the question and the answer to reviewer models:
 
-Key features:
-- Consistency checking across models
-- Citation/fact verification
-- Confidence estimation
-- Risk scoring for different types of hallucinations
+1. Reliability check: every model is asked whether the answer is RELIABLE,
+   QUESTIONABLE or UNRELIABLE.
+2. Fact check: the first model lists claims that are wrong or unverifiable.
+3. Citation check: the second model lists sources that look made up.
+
+The replies are plain text. They are parsed for their labelled fields and
+turned into a risk level by the fixed rules in calculate_risk().
 """
 
 import logging
+import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
@@ -19,211 +22,10 @@ from maven.utils import generate_trace_id, get_timestamp
 
 logger = logging.getLogger(__name__)
 
+# Risk levels treated as "likely hallucination" by is_hallucination().
+DEFAULT_THRESHOLD = ("MEDIUM", "HIGH", "CRITICAL")
 
-@dataclass
-class TraceStep:
-    """One model call made during a detection run."""
-
-    iteration: int
-    role: str
-    model: str
-    content: str
-    timestamp: str = field(default_factory=get_timestamp)
-
-    @property
-    def summary(self) -> str:
-        """First 100 characters of the model's reply."""
-        max_len = 100
-        if len(self.content) <= max_len:
-            return self.content
-        return self.content[: max_len - 3] + "..."
-
-
-@dataclass
-class HallucinationReport:
-    """Report on potential hallucinations in a response."""
-
-    # Overall risk assessment
-    risk_level: str  # "LOW", "MEDIUM", "HIGH", "CRITICAL"
-    confidence_score: float  # 0-100, higher = more confident answer is accurate
-
-    # Specific hallucination flags
-    flags: list[str]  # Specific issues detected
-    consistency_score: float  # How well models agree (0-100)
-
-    # Detailed checks
-    fact_checks: list[dict[str, Any]]  # Results from fact verification
-    citation_checks: list[dict[str, Any]]  # Results from citation verification
-    logic_checks: list[dict[str, Any]]  # Results from logical consistency checks
-
-    # Supporting evidence
-    model_responses: list[str]  # What each model said
-    disagreements: list[str]  # Where models disagreed
-
-    # Trace and metadata
-    trace: list[TraceStep]
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary format."""
-        return {
-            "risk_level": self.risk_level,
-            "confidence_score": self.confidence_score,
-            "flags": self.flags,
-            "consistency_score": self.consistency_score,
-            "fact_checks": self.fact_checks,
-            "citation_checks": self.citation_checks,
-            "logic_checks": self.logic_checks,
-            "model_responses": self.model_responses,
-            "disagreements": self.disagreements,
-            "metadata": self.metadata,
-        }
-
-
-# Domain-specific verification prompts for high-stakes domains
-DOMAIN_PROMPTS = {
-    "medical": {
-        "extra_checks": [
-            "Check for fabricated medical studies or clinical trials",
-            "Verify drug interactions and dosage information",
-            "Flag unverified treatment claims",
-            "Check for outdated medical guidelines",
-        ],
-        "risk_keywords": [
-            "according to a study",
-            "research shows",
-            "clinical trial",
-            "FDA approved",
-            "treatment for",
-            "cure for",
-            "mg dosage",
-        ],
-    },
-    "legal": {
-        "extra_checks": [
-            "Verify case citations exist (e.g., 'Smith v. Jones')",
-            "Check statute references are valid",
-            "Flag jurisdictional misstatements",
-            "Verify legal precedent accuracy",
-        ],
-        "risk_keywords": [
-            "v.",
-            "vs.",
-            "court ruled",
-            "statute",
-            "precedent",
-            "legal requirement",
-            "under the law",
-            "regulation",
-        ],
-    },
-    "financial": {
-        "extra_checks": [
-            "Verify financial figures and statistics",
-            "Check regulatory compliance claims",
-            "Flag specific investment advice",
-            "Verify market data accuracy",
-        ],
-        "risk_keywords": [
-            "ROI",
-            "return",
-            "investment",
-            "SEC",
-            "regulation",
-            "market cap",
-            "earnings",
-            "dividend",
-        ],
-    },
-}
-
-
-class HallucinationDetector:
-    """Multi-model hallucination detection system.
-
-    Uses multiple models to verify a response and flag potential hallucinations.
-    Particularly valuable for high-stakes domains like law and medicine.
-
-    Features:
-        - Multi-model consistency checking
-        - Domain-specific verification (medical, legal, financial)
-        - Citation and fact verification
-        - Batch detection support
-        - Rate limiting built-in
-    """
-
-    def __init__(
-        self,
-        models: list[str],
-        rate_limit_delay: float = 1.0,
-    ):
-        """Initialize hallucination detector.
-
-        Args:
-            models: List of model identifiers (minimum 2 required).
-            rate_limit_delay: Delay in seconds between API calls (default: 1.0).
-
-        """
-        if len(models) < 2:
-            raise ValueError("At least 2 models required for hallucination detection")
-
-        self.model_ids = models
-        self._models: dict[str, ModelInterface] = {}
-        self._trace: list[TraceStep] = []
-        self._rate_limit_delay = rate_limit_delay
-        self._last_call_time: float = 0
-
-        logger.info(f"Initialized HallucinationDetector with {len(models)} models")
-
-    def _rate_limit(self) -> None:
-        """Apply rate limiting between API calls."""
-        import time
-
-        current_time = time.time()
-        elapsed = current_time - self._last_call_time
-        if elapsed < self._rate_limit_delay:
-            time.sleep(self._rate_limit_delay - elapsed)
-        self._last_call_time = time.time()
-
-    def _get_model(self, model_id: str) -> ModelInterface:
-        """Get or create model instance."""
-        if model_id not in self._models:
-            self._models[model_id] = create_model(model_id)
-        return self._models[model_id]
-
-    def _generate(self, model_id: str, prompt: str, role: str) -> str:
-        """Generate a response, turning API errors into an "Error: ..." string."""
-        self._rate_limit()
-        model = self._get_model(model_id)
-        try:
-            return model.generate(prompt, role)
-        except Exception as e:
-            logger.error(f"Model {model_id} failed: {e}")
-            return f"Error: {e}"
-
-    def detect(
-        self,
-        query: str,
-        answer: str,
-        domain: Optional[str] = None,
-    ) -> HallucinationReport:
-        """Detect potential hallucinations in an answer.
-
-        Args:
-            query: The original question/query
-            answer: The answer to verify for hallucinations
-            domain: Optional domain context (e.g., "medical", "legal")
-
-        Returns:
-            HallucinationReport with risk assessment and detailed checks
-        """
-        trace_id = generate_trace_id()
-        logger.info(f"Starting hallucination detection {trace_id}")
-
-        self._trace = []
-
-        # Verification prompts
-        CONSISTENCY_PROMPT = f"""You are verifying an AI-generated answer for potential hallucinations.
+RELIABILITY_PROMPT = """You are verifying an AI-generated answer for potential hallucinations.
 
 CRITICAL: This is for a high-stakes domain. Flag ANY suspicious claims.
 
@@ -245,7 +47,7 @@ VERDICT: [RELIABLE / QUESTIONABLE / UNRELIABLE]
 ISSUES: [List specific problems, or "None" if answer seems sound]
 CONFIDENCE: [High/Medium/Low in your assessment]"""
 
-        FACT_CHECK_PROMPT = f"""You are fact-checking an AI answer for a critical application.
+FACT_CHECK_PROMPT = """You are fact-checking an AI answer for a critical application.
 
 Original Question: {query}
 
@@ -259,7 +61,7 @@ FACTS_VERIFIED: [List what you checked]
 FACTS_FAILED: [List any facts that couldn't be verified or were wrong]
 CONFIDENCE: [High/Medium/Low]"""
 
-        CITATION_PROMPT = f"""You are checking an answer for fabricated or misleading citations/sources.
+CITATION_PROMPT = """You are checking an answer for fabricated or misleading citations/sources.
 
 Original Question: {query}
 
@@ -277,251 +79,255 @@ CITATIONS_FOUND: [List any citations/references mentioned]
 SUSPICIOUS: [Flag any that seem fabricated or unsourced]
 CONFIDENCE: [High/Medium/Low]"""
 
-        # Run verification checks in parallel
-        model_responses = []
-        fact_checks = []
-        citation_checks = []
-        consistency_checks = []
+_VERDICT_RE = re.compile(
+    # "VERDICT: RELIABLE", "Verdict: [unreliable]"; "RELIABLE / ..." is an echoed template.
+    r"VERDICT\s*:\s*\[?\s*(UNRELIABLE|RELIABLE|QUESTIONABLE)\b(?!\s*/)",
+    re.IGNORECASE,
+)
+_EMPTY_ANSWERS = {"", "none", "n/a", "na", "no", "nothing", "-"}
 
-        # Consistency check (all models)
-        for i, model_id in enumerate(self.model_ids):
-            logger.info(f"Running consistency check {i+1}/{len(self.model_ids)}")
 
-            response = self._generate(
-                model_id, CONSISTENCY_PROMPT, f"consistency_checker_{i}"
-            )
+@dataclass
+class TraceStep:
+    """One model call made during a detection run."""
 
-            self._trace.append(
-                TraceStep(
-                    iteration=1,
-                    role="consistency_checker",
-                    model=model_id,
-                    content=response,
-                )
-            )
+    role: str
+    model: str
+    content: str
+    timestamp: str = field(default_factory=get_timestamp)
 
-            model_responses.append(response)
+    @property
+    def summary(self) -> str:
+        """First 100 characters of the model's reply."""
+        max_len = 100
+        if len(self.content) <= max_len:
+            return self.content
+        return self.content[: max_len - 3] + "..."
 
-            # Parse verdict
-            verdict = "QUESTIONABLE"  # Default
-            if "VERDICT: RELIABLE" in response.upper():
-                verdict = "RELIABLE"
-            elif "VERDICT: UNRELIABLE" in response.upper():
-                verdict = "UNRELIABLE"
 
-            consistency_checks.append(
-                {"model": model_id, "verdict": verdict, "response": response[:300]}
-            )
+@dataclass
+class HallucinationReport:
+    """Result of one detection run."""
 
-        # Fact check (first model)
-        logger.info("Running fact check")
-        fact_response = self._generate(
-            self.model_ids[0], FACT_CHECK_PROMPT, "fact_checker"
+    risk_level: str  # "LOW", "MEDIUM", "HIGH" or "CRITICAL"
+    reliable_share: float  # % of reviewer models that voted RELIABLE (a vote share, 0-100)
+    flags: list[str]  # problems found; any flag means HIGH risk or worse
+    verdicts: list[str]  # one reliability verdict per reviewer model, in model order
+    fact_checks: list[dict[str, Any]]
+    citation_checks: list[dict[str, Any]]
+    model_responses: list[str]  # full reliability-check reply from each model
+    disagreements: list[str]
+    trace: list[TraceStep]
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to a JSON-friendly dict (the trace is left out)."""
+        return {
+            "risk_level": self.risk_level,
+            "reliable_share": self.reliable_share,
+            "flags": self.flags,
+            "verdicts": self.verdicts,
+            "fact_checks": self.fact_checks,
+            "citation_checks": self.citation_checks,
+            "model_responses": self.model_responses,
+            "disagreements": self.disagreements,
+            "metadata": self.metadata,
+        }
+
+
+def _strip_markdown(text: str) -> str:
+    return re.sub(r"[*`#]", "", text)
+
+
+def parse_verdict(text: str) -> str:
+    """Read the VERDICT field of a reliability reply. Defaults to QUESTIONABLE."""
+    match = _VERDICT_RE.search(_strip_markdown(text))
+    return match.group(1).upper() if match else "QUESTIONABLE"
+
+
+def has_reported_items(text: str, label: str) -> bool:
+    """Return True if the model listed anything under `label` (e.g. FACTS_FAILED).
+
+    The field runs until the next line that starts with an upper-case label.
+    "None", "N/A", "No" and an empty field all count as nothing reported.
+    """
+    pattern = rf"(?i:{re.escape(label)})\s*:(.*?)(?=\n\s*[A-Z][A-Z_ ]{{2,}}:|\Z)"
+    match = re.search(pattern, _strip_markdown(text), re.DOTALL)
+    if not match:
+        return False
+    first_line = match.group(1).strip().strip("[]").strip().split("\n")[0].strip().lower()
+    first_word = re.split(r"[\s.,;:!()-]+", first_line.strip("- "), maxsplit=1)[0]
+    return first_line not in _EMPTY_ANSWERS and first_word not in {"none", "nothing", "n/a"}
+
+
+def calculate_risk(
+    verdicts: list[str], fact_response: str, citation_response: str
+) -> tuple[str, float, list[str], list[str]]:
+    """Turn parsed replies into (risk_level, reliable_share, flags, disagreements).
+
+    Rules, checked in order:
+        CRITICAL  2+ models said UNRELIABLE, or 2+ flags
+        HIGH      any flag (one UNRELIABLE vote counts as a flag)
+        MEDIUM    fewer than 75% of models said RELIABLE
+        LOW       otherwise
+    """
+    flags = []
+    unreliable = verdicts.count("UNRELIABLE")
+    if unreliable:
+        flags.append(f"{unreliable}/{len(verdicts)} models rated the answer UNRELIABLE")
+    if has_reported_items(fact_response, "FACTS_FAILED"):
+        flags.append("Fact check found wrong or unverifiable claims")
+    if has_reported_items(citation_response, "SUSPICIOUS"):
+        flags.append("Citation check found suspicious or unsourced references")
+
+    disagreements = []
+    if len(set(verdicts)) > 1:
+        disagreements.append(f"Models disagree on reliability: {', '.join(verdicts)}")
+
+    reliable_share = verdicts.count("RELIABLE") / len(verdicts) * 100
+
+    if unreliable >= 2 or len(flags) >= 2:
+        risk_level = "CRITICAL"
+    elif flags:
+        risk_level = "HIGH"
+    elif reliable_share < 75:
+        risk_level = "MEDIUM"
+    else:
+        risk_level = "LOW"
+    return risk_level, reliable_share, flags, disagreements
+
+
+def build_report(
+    query: str,
+    answer: str,
+    reliability_steps: list[TraceStep],
+    fact_step: TraceStep,
+    citation_step: TraceStep,
+    **extra_metadata: Any,
+) -> HallucinationReport:
+    """Assemble a report from the model calls of one run (shared by both detectors)."""
+    verdicts = [parse_verdict(step.content) for step in reliability_steps]
+    risk_level, reliable_share, flags, disagreements = calculate_risk(
+        verdicts, fact_step.content, citation_step.content
+    )
+    logger.info(f"Detection complete: {risk_level} ({reliable_share:.0f}% reliable votes)")
+
+    return HallucinationReport(
+        risk_level=risk_level,
+        reliable_share=reliable_share,
+        flags=flags,
+        verdicts=verdicts,
+        fact_checks=[{"model": fact_step.model, "response": fact_step.content[:500]}],
+        citation_checks=[{"model": citation_step.model, "response": citation_step.content[:500]}],
+        model_responses=[step.content for step in reliability_steps],
+        disagreements=disagreements,
+        trace=[*reliability_steps, fact_step, citation_step],
+        metadata={
+            "trace_id": generate_trace_id(),
+            "query": query,
+            "answer": answer[:500],
+            "models": [step.model for step in reliability_steps],
+            "completed_at": get_timestamp(),
+            **extra_metadata,
+        },
+    )
+
+
+def error_report(query: str, error: Exception) -> HallucinationReport:
+    """Report used by detect_batch() when one item fails completely."""
+    return HallucinationReport(
+        risk_level="HIGH",
+        reliable_share=0.0,
+        flags=[f"Detection error: {error}"],
+        verdicts=[],
+        fact_checks=[],
+        citation_checks=[],
+        model_responses=[],
+        disagreements=[],
+        trace=[],
+        metadata={"error": str(error), "query": query},
+    )
+
+
+class HallucinationDetector:
+    """Checks answers by asking several reviewer models, one call at a time.
+
+    Example:
+        detector = HallucinationDetector(models=["together/llama-3.1-8b", "gpt-4o"])
+        report = detector.detect(query="...", answer="...")
+    """
+
+    def __init__(self, models: list[str], rate_limit_delay: float = 1.0):
+        """Create a detector.
+
+        Args:
+            models: Reviewer model identifiers (at least 2). The first also runs the
+                fact check and the second the citation check.
+            rate_limit_delay: Minimum seconds between two API calls.
+        """
+        if len(models) < 2:
+            raise ValueError("At least 2 models required for hallucination detection")
+
+        self.model_ids = models
+        self._models: dict[str, ModelInterface] = {}
+        self._rate_limit_delay = rate_limit_delay
+        self._last_call_time: float = 0
+
+    def _rate_limit(self) -> None:
+        elapsed = time.time() - self._last_call_time
+        if elapsed < self._rate_limit_delay:
+            time.sleep(self._rate_limit_delay - elapsed)
+        self._last_call_time = time.time()
+
+    def _get_model(self, model_id: str) -> ModelInterface:
+        if model_id not in self._models:
+            self._models[model_id] = create_model(model_id)
+        return self._models[model_id]
+
+    def _call(self, model_id: str, prompt: str, role: str) -> TraceStep:
+        """Run one model call; API errors become an "Error: ..." reply."""
+        self._rate_limit()
+        try:
+            content = self._get_model(model_id).generate(prompt, role)
+        except Exception as e:
+            logger.error(f"Model {model_id} failed: {e}")
+            content = f"Error: {e}"
+        return TraceStep(role=role, model=model_id, content=content)
+
+    def detect(self, query: str, answer: str) -> HallucinationReport:
+        """Check one answer. Makes len(models) + 2 API calls, one after another."""
+        fields = {"query": query, "answer": answer}
+        reliability_steps = [
+            self._call(model_id, RELIABILITY_PROMPT.format(**fields), "reliability_check")
+            for model_id in self.model_ids
+        ]
+        fact_step = self._call(self.model_ids[0], FACT_CHECK_PROMPT.format(**fields), "fact_check")
+        citation_step = self._call(
+            self.model_ids[1], CITATION_PROMPT.format(**fields), "citation_check"
         )
-
-        self._trace.append(
-            TraceStep(
-                iteration=2,
-                role="fact_checker",
-                model=self.model_ids[0],
-                content=fact_response,
-            )
-        )
-
-        fact_checks.append(
-            {
-                "model": self.model_ids[0],
-                "response": fact_response[:500],
-            }
-        )
-
-        # Citation check (use second model)
-        logger.info("Running citation check")
-        citation_response = self._generate(
-            self.model_ids[1] if len(self.model_ids) > 1 else self.model_ids[0],
-            CITATION_PROMPT,
-            "citation_checker",
-        )
-
-        self._trace.append(
-            TraceStep(
-                iteration=3,
-                role="citation_checker",
-                model=self.model_ids[1] if len(self.model_ids) > 1 else self.model_ids[0],
-                content=citation_response,
-            )
-        )
-
-        citation_checks.append(
-            {
-                "model": self.model_ids[1] if len(self.model_ids) > 1 else self.model_ids[0],
-                "response": citation_response[:500],
-            }
-        )
-
-        # Analyze results
-        flags = []
-        disagreements = []
-
-        # Check consistency across models
-        verdicts = [c["verdict"] for c in consistency_checks]
-        reliable_count = verdicts.count("RELIABLE")
-        unreliable_count = verdicts.count("UNRELIABLE")
-
-        if unreliable_count > 0:
-            flags.append(f"{unreliable_count}/{len(verdicts)} models flagged as UNRELIABLE")
-
-        if len(set(verdicts)) > 1:
-            disagreements.append(f"Models disagree on reliability: {verdicts}")
-
-        # Check fact verification
-        if (
-            "FACTS_FAILED" in fact_response
-            and "None" not in fact_response.split("FACTS_FAILED")[1][:100]
-        ):
-            flags.append("Fact verification failed for some claims")
-
-        # Check citations
-        if (
-            "SUSPICIOUS" in citation_response
-            and "None" not in citation_response.split("SUSPICIOUS")[1][:100]
-        ):
-            flags.append("Suspicious or unsourced citations detected")
-
-        # Calculate scores
-        consistency_score = (reliable_count / len(verdicts)) * 100
-        confidence_score = consistency_score  # Base on consistency for now
-
-        # Determine risk level with improved logic
-        # Key principle: Be conservative - prioritize catching hallucinations over avoiding FPs
-        #
-        # Analysis from TruthfulQA benchmark showed:
-        # - Old MEDIUM threshold: 93.6% of answers were actually untruthful
-        # - Old LOW threshold: 93.3% of answers were actually untruthful
-        # This means we need to be much more aggressive with flagging
-
-        # CRITICAL: 2+ models said UNRELIABLE, or 2+ flags
-        if unreliable_count >= 2 or len(flags) >= 2:
-            risk_level = "CRITICAL"
-        # HIGH: Any model said UNRELIABLE, or any flags present
-        elif unreliable_count > 0 or len(flags) > 0:
-            risk_level = "HIGH"
-        # MEDIUM: Low consistency (models disagree) even if no explicit UNRELIABLE
-        elif confidence_score < 75:
-            risk_level = "MEDIUM"
-        # LOW: High consistency, all models agree it's RELIABLE, no flags
-        else:
-            risk_level = "LOW"
-
-        logger.info(f"Detection complete: {risk_level} risk ({confidence_score:.1f}% confidence)")
-
-        return HallucinationReport(
-            risk_level=risk_level,
-            confidence_score=confidence_score,
-            flags=flags,
-            consistency_score=consistency_score,
-            fact_checks=fact_checks,
-            citation_checks=citation_checks,
-            logic_checks=[],  # Placeholder for future logic checking
-            model_responses=model_responses,
-            disagreements=disagreements,
-            trace=self._trace,
-            metadata={
-                "trace_id": trace_id,
-                "query": query,
-                "answer": answer[:500],
-                "domain": domain,
-                "models": self.model_ids,
-                "completed_at": get_timestamp(),
-            },
-        )
+        return build_report(query, answer, reliability_steps, fact_step, citation_step)
 
     def detect_batch(
         self,
         items: list[dict[str, str]],
-        domain: Optional[str] = None,
         progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> list[HallucinationReport]:
-        """Detect hallucinations in a batch of query-answer pairs.
-
-        Args:
-            items: List of dicts with 'query' and 'answer' keys.
-            domain: Optional domain context for all items.
-            progress_callback: Optional callback(current, total) for progress updates.
-
-        Returns:
-            List of HallucinationReport for each item.
-
-        Example:
-            reports = detector.detect_batch([
-                {"query": "What is aspirin?", "answer": "Aspirin is..."},
-                {"query": "Who invented it?", "answer": "Felix Hoffmann..."},
-            ])
-        """
+        """Check several {"query": ..., "answer": ...} items in order."""
         results = []
-        total = len(items)
-
         for i, item in enumerate(items):
             query = item.get("query", "")
-            answer = item.get("answer", "")
-            item_domain = item.get("domain", domain)
-
             try:
-                report = self.detect(query, answer, item_domain)
-                results.append(report)
+                results.append(self.detect(query, item.get("answer", "")))
             except Exception as e:
-                logger.error(f"Error detecting item {i+1}/{total}: {e}")
-                # Create error report
-                results.append(
-                    HallucinationReport(
-                        risk_level="HIGH",
-                        confidence_score=0.0,
-                        flags=[f"Detection error: {str(e)}"],
-                        consistency_score=0.0,
-                        fact_checks=[],
-                        citation_checks=[],
-                        logic_checks=[],
-                        model_responses=[],
-                        disagreements=[],
-                        trace=[],
-                        metadata={"error": str(e), "query": query},
-                    )
-                )
-
+                logger.error(f"Error detecting item {i + 1}/{len(items)}: {e}")
+                results.append(error_report(query, e))
             if progress_callback:
-                progress_callback(i + 1, total)
-
+                progress_callback(i + 1, len(items))
         return results
 
     def is_hallucination(
-        self,
-        query: str,
-        answer: str,
-        domain: Optional[str] = None,
-        threshold: Optional[list[str]] = None,
+        self, query: str, answer: str, threshold: Optional[list[str]] = None
     ) -> bool:
-        """Quick check if an answer is likely a hallucination.
-
-        Args:
-            query: The original question.
-            answer: The answer to check.
-            domain: Optional domain context.
-            threshold: Risk levels to flag as hallucinations.
-                       Default: ["CRITICAL", "HIGH", "MEDIUM"]
-
-        Returns:
-            True if likely a hallucination, False otherwise.
-
-        Example:
-            if detector.is_hallucination(query, answer):
-                print("Warning: This answer may contain hallucinations!")
-        """
-        if threshold is None:
-            threshold = ["CRITICAL", "HIGH", "MEDIUM"]
-
-        report = self.detect(query, answer, domain)
-        return report.risk_level in threshold
-
-    def get_trace(self) -> list[TraceStep]:
-        """Get the detection trace from the last run."""
-        return self._trace.copy()
+        """True if the risk level is in `threshold` (default: MEDIUM, HIGH, CRITICAL)."""
+        levels = threshold if threshold is not None else DEFAULT_THRESHOLD
+        return self.detect(query, answer).risk_level in levels

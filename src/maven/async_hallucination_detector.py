@@ -1,450 +1,141 @@
-"""
-Async Hallucination Detection for MAVEN.
+"""Async version of the detector: sends the model calls for a check concurrently.
 
-Provides asynchronous hallucination detection with parallel processing
-for improved performance on batch operations.
+It uses the same prompts, parsing and scoring as HallucinationDetector. The
+only difference is that calls run at the same time (asyncio.gather) instead of
+one after another, with a semaphore capping how many are in flight at once.
 """
 
 import asyncio
 import logging
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from maven.async_models import AsyncModelInterface, create_async_model
-from maven.hallucination_detector import HallucinationReport, TraceStep
-from maven.utils import generate_trace_id, get_timestamp
+from maven.hallucination_detector import (
+    CITATION_PROMPT,
+    DEFAULT_THRESHOLD,
+    FACT_CHECK_PROMPT,
+    RELIABILITY_PROMPT,
+    HallucinationReport,
+    TraceStep,
+    build_report,
+    error_report,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class AsyncHallucinationDetector:
-    """Asynchronous multi-model hallucination detection system.
-
-    Uses multiple models to verify responses and flag potential hallucinations,
-    with full async/await support for parallel processing.
-
-    Features:
-        - Parallel model calls for faster detection
-        - Batch detection with concurrency control
-        - Domain-specific verification (medical, legal, financial)
-        - Rate limiting
+    """Checks answers with concurrent model calls.
 
     Example:
         detector = AsyncHallucinationDetector(
             models=["together/llama-3.1-8b", "together/qwen-2.5-7b", "together/mixtral-8x7b"]
         )
-
-        # Single detection
-        report = await detector.detect(
-            query="What is aspirin?",
-            answer="Aspirin is...",
-            domain="medical"
+        report = await detector.detect(query="...", answer="...")
+        reports = await detector.detect_batch(
+            [{"query": "Q1", "answer": "A1"}, {"query": "Q2", "answer": "A2"}],
+            max_concurrent=3,
         )
-
-        # Batch detection with parallelism
-        reports = await detector.detect_batch([
-            {"query": "Q1", "answer": "A1"},
-            {"query": "Q2", "answer": "A2"},
-        ], max_concurrent=3)
     """
 
     def __init__(
         self,
         models: list[str],
         rate_limit_delay: float = 0.5,
+        max_concurrent_calls: Optional[int] = None,
     ):
-        """Initialize async hallucination detector.
+        """Create a detector.
 
         Args:
-            models: List of model identifiers (minimum 2 required).
-            rate_limit_delay: Delay in seconds between API calls (default: 0.5).
+            models: Reviewer model identifiers (at least 2). The first also runs the
+                fact check and the second the citation check.
+            rate_limit_delay: Seconds each call waits before it is sent.
+            max_concurrent_calls: Cap on API calls in flight at once, across all
+                checks (default: the number of models).
         """
         if len(models) < 2:
             raise ValueError("At least 2 models required for hallucination detection")
 
         self.model_ids = models
         self._models: dict[str, AsyncModelInterface] = {}
-        self._trace: list[TraceStep] = []
         self._rate_limit_delay = rate_limit_delay
-        self._rate_limiter = asyncio.Semaphore(len(models))  # Limit concurrent calls
-
-        logger.info(f"Initialized AsyncHallucinationDetector with {len(models)} models")
+        self._max_concurrent_calls = max_concurrent_calls or len(models)
+        # A semaphore belongs to one event loop, so it is created on first use per loop.
+        self._call_limiter: Optional[asyncio.Semaphore] = None
+        self._limiter_loop: Optional[asyncio.AbstractEventLoop] = None
 
     def _get_model(self, model_id: str) -> AsyncModelInterface:
-        """Get or create async model instance."""
         if model_id not in self._models:
             self._models[model_id] = create_async_model(model_id)
         return self._models[model_id]
 
-    async def _generate_with_rate_limit(
-        self,
-        model_id: str,
-        prompt: str,
-        role: str,
-    ) -> str:
-        """Generate response with rate limiting."""
-        async with self._rate_limiter:
+    def _limiter(self) -> asyncio.Semaphore:
+        loop = asyncio.get_running_loop()
+        if self._call_limiter is None or self._limiter_loop is not loop:
+            self._call_limiter = asyncio.Semaphore(self._max_concurrent_calls)
+            self._limiter_loop = loop
+        return self._call_limiter
+
+    async def _call(self, model_id: str, prompt: str, role: str) -> TraceStep:
+        """Run one model call; API errors become an "Error: ..." reply."""
+        async with self._limiter():
             await asyncio.sleep(self._rate_limit_delay)
-            model = self._get_model(model_id)
             try:
-                content = await model.generate(prompt, role)
+                content = await self._get_model(model_id).generate(prompt, role)
             except Exception as e:
                 logger.error(f"Model {model_id} failed: {e}")
                 content = f"Error: {e}"
-            return content
+        return TraceStep(role=role, model=model_id, content=content)
 
-    async def _run_consistency_checks(
-        self,
-        query: str,
-        answer: str,
-    ) -> tuple[list[str], list[dict[str, Any]]]:
-        """Run consistency checks across all models in parallel."""
-        CONSISTENCY_PROMPT = f"""You are verifying an AI-generated answer for potential hallucinations.
-
-CRITICAL: This is for a high-stakes domain. Flag ANY suspicious claims.
-
-Original Question: {query}
-
-Answer to Verify:
-{answer}
-
-Your task: Check if this answer is consistent and factually sound.
-
-Look for:
-- Fabricated facts or citations
-- Logical inconsistencies
-- Unsupported claims
-- Vague or hedging language that might hide uncertainty
-
-Respond with:
-VERDICT: [RELIABLE / QUESTIONABLE / UNRELIABLE]
-ISSUES: [List specific problems, or "None" if answer seems sound]
-CONFIDENCE: [High/Medium/Low in your assessment]"""
-
-        # Run all consistency checks in parallel
-        tasks = [
-            self._generate_with_rate_limit(model_id, CONSISTENCY_PROMPT, f"consistency_checker_{i}")
-            for i, model_id in enumerate(self.model_ids)
-        ]
-
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
-
-        model_responses: list[str] = []
-        consistency_checks: list[dict[str, Any]] = []
-
-        for _i, (model_id, response) in enumerate(zip(self.model_ids, responses)):
-            if isinstance(response, Exception):
-                response_str = f"Error: {response}"
-            else:
-                response_str = str(response)
-
-            model_responses.append(response_str)
-
-            # Parse verdict
-            verdict = "QUESTIONABLE"
-            if "VERDICT: RELIABLE" in response_str.upper():
-                verdict = "RELIABLE"
-            elif "VERDICT: UNRELIABLE" in response_str.upper():
-                verdict = "UNRELIABLE"
-
-            consistency_checks.append(
-                {"model": model_id, "verdict": verdict, "response": response_str[:300]}
-            )
-
-            self._trace.append(
-                TraceStep(
-                    iteration=1,
-                    role="consistency_checker",
-                    model=model_id,
-                    content=response_str,
-                )
-            )
-
-        return model_responses, consistency_checks
-
-    async def _run_fact_check(self, query: str, answer: str) -> dict[str, Any]:
-        """Run fact check using first model."""
-        FACT_CHECK_PROMPT = f"""You are fact-checking an AI answer for a critical application.
-
-Original Question: {query}
-
-Answer to Check:
-{answer}
-
-Your task: Verify specific factual claims in this answer.
-
-Report:
-FACTS_VERIFIED: [List what you checked]
-FACTS_FAILED: [List any facts that couldn't be verified or were wrong]
-CONFIDENCE: [High/Medium/Low]"""
-
-        response = await self._generate_with_rate_limit(
-            self.model_ids[0], FACT_CHECK_PROMPT, "fact_checker"
+    async def detect(self, query: str, answer: str) -> HallucinationReport:
+        """Check one answer. Sends len(models) + 2 API calls concurrently."""
+        fields = {"query": query, "answer": answer}
+        reliability_prompt = RELIABILITY_PROMPT.format(**fields)
+        *reliability_steps, fact_step, citation_step = await asyncio.gather(
+            *(self._call(m, reliability_prompt, "reliability_check") for m in self.model_ids),
+            self._call(self.model_ids[0], FACT_CHECK_PROMPT.format(**fields), "fact_check"),
+            self._call(self.model_ids[1], CITATION_PROMPT.format(**fields), "citation_check"),
         )
-
-        self._trace.append(
-            TraceStep(
-                iteration=2,
-                role="fact_checker",
-                model=self.model_ids[0],
-                content=response,
-            )
-        )
-
-        return {
-            "model": self.model_ids[0],
-            "response": response[:500],
-        }
-
-    async def _run_citation_check(self, query: str, answer: str) -> dict[str, Any]:
-        """Run citation check using second model."""
-        CITATION_PROMPT = f"""You are checking an answer for fabricated or misleading citations/sources.
-
-Original Question: {query}
-
-Answer to Check:
-{answer}
-
-Look for:
-- Citations or references that seem fabricated
-- Vague references ("studies show", "experts say")
-- Specific claims without sources
-- Real-sounding but potentially fake case names/statutes
-
-Report:
-CITATIONS_FOUND: [List any citations/references mentioned]
-SUSPICIOUS: [Flag any that seem fabricated or unsourced]
-CONFIDENCE: [High/Medium/Low]"""
-
-        model_id = self.model_ids[1] if len(self.model_ids) > 1 else self.model_ids[0]
-        response = await self._generate_with_rate_limit(
-            model_id, CITATION_PROMPT, "citation_checker"
-        )
-
-        self._trace.append(
-            TraceStep(
-                iteration=3,
-                role="citation_checker",
-                model=model_id,
-                content=response,
-            )
-        )
-
-        return {
-            "model": model_id,
-            "response": response[:500],
-        }
-
-    def _calculate_risk(
-        self,
-        consistency_checks: list[dict[str, Any]],
-        fact_response: str,
-        citation_response: str,
-    ) -> tuple[str, float, list[str], list[str]]:
-        """Calculate risk level and confidence score."""
-        flags = []
-        disagreements = []
-
-        # Check consistency across models
-        verdicts = [c["verdict"] for c in consistency_checks]
-        reliable_count = verdicts.count("RELIABLE")
-        unreliable_count = verdicts.count("UNRELIABLE")
-
-        if unreliable_count > 0:
-            flags.append(f"{unreliable_count}/{len(verdicts)} models flagged as UNRELIABLE")
-
-        if len(set(verdicts)) > 1:
-            disagreements.append(f"Models disagree on reliability: {verdicts}")
-
-        # Check fact verification
-        if (
-            "FACTS_FAILED" in fact_response
-            and "None" not in fact_response.split("FACTS_FAILED")[1][:100]
-        ):
-            flags.append("Fact verification failed for some claims")
-
-        # Check citations
-        if (
-            "SUSPICIOUS" in citation_response
-            and "None" not in citation_response.split("SUSPICIOUS")[1][:100]
-        ):
-            flags.append("Suspicious or unsourced citations detected")
-
-        # Calculate scores
-        consistency_score = (reliable_count / len(verdicts)) * 100
-        confidence_score = consistency_score
-
-        # Determine risk level
-        if unreliable_count >= 2 or len(flags) >= 2:
-            risk_level = "CRITICAL"
-        elif unreliable_count > 0 or len(flags) > 0:
-            risk_level = "HIGH"
-        elif confidence_score < 75:
-            risk_level = "MEDIUM"
-        else:
-            risk_level = "LOW"
-
-        return risk_level, confidence_score, flags, disagreements
-
-    async def detect(
-        self,
-        query: str,
-        answer: str,
-        domain: Optional[str] = None,
-    ) -> HallucinationReport:
-        """Detect potential hallucinations asynchronously.
-
-        Args:
-            query: The original question/query.
-            answer: The answer to verify.
-            domain: Optional domain context (e.g., "medical", "legal").
-
-        Returns:
-            HallucinationReport with risk assessment.
-        """
-        trace_id = generate_trace_id()
-        logger.info(f"Starting async hallucination detection {trace_id}")
-
-        self._trace = []
-
-        # Run all checks in parallel where possible
-        consistency_task = self._run_consistency_checks(query, answer)
-        fact_task = self._run_fact_check(query, answer)
-        citation_task = self._run_citation_check(query, answer)
-
-        # Gather results
-        (model_responses, consistency_checks), fact_check, citation_check = await asyncio.gather(
-            consistency_task, fact_task, citation_task
-        )
-
-        # Calculate risk
-        risk_level, confidence_score, flags, disagreements = self._calculate_risk(
-            consistency_checks,
-            fact_check["response"],
-            citation_check["response"],
-        )
-
-        consistency_score = (
-            len([c for c in consistency_checks if c["verdict"] == "RELIABLE"])
-            / len(consistency_checks)
-        ) * 100
-
-        logger.info(
-            f"Async detection complete: {risk_level} risk ({confidence_score:.1f}% confidence)"
-        )
-
-        return HallucinationReport(
-            risk_level=risk_level,
-            confidence_score=confidence_score,
-            flags=flags,
-            consistency_score=consistency_score,
-            fact_checks=[fact_check],
-            citation_checks=[citation_check],
-            logic_checks=[],
-            model_responses=model_responses,
-            disagreements=disagreements,
-            trace=self._trace,
-            metadata={
-                "trace_id": trace_id,
-                "query": query,
-                "answer": answer[:500],
-                "domain": domain,
-                "models": self.model_ids,
-                "async": True,
-                "completed_at": get_timestamp(),
-            },
+        return build_report(
+            query, answer, list(reliability_steps), fact_step, citation_step, run_async=True
         )
 
     async def detect_batch(
         self,
         items: list[dict[str, str]],
-        domain: Optional[str] = None,
         max_concurrent: int = 5,
         progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> list[HallucinationReport]:
-        """Detect hallucinations in a batch with controlled concurrency.
+        """Check several {"query": ..., "answer": ...} items; results keep input order.
 
         Args:
-            items: List of dicts with 'query' and 'answer' keys.
-            domain: Optional domain context for all items.
-            max_concurrent: Maximum concurrent detections (default: 5).
-            progress_callback: Optional callback(current, total) for progress.
-
-        Returns:
-            List of HallucinationReport for each item.
-
-        Example:
-            reports = await detector.detect_batch([
-                {"query": "Q1", "answer": "A1"},
-                {"query": "Q2", "answer": "A2"},
-            ], max_concurrent=3)
+            items: The question/answer pairs to check.
+            max_concurrent: How many items are checked at the same time.
+            progress_callback: Called as callback(done, total) after each item.
         """
-        semaphore = asyncio.Semaphore(max_concurrent)
-        results_dict: dict[int, HallucinationReport] = {}
+        item_limiter = asyncio.Semaphore(max_concurrent)
         completed = 0
 
-        async def detect_with_limit(index: int, item: dict[str, str]) -> None:
+        async def run(index: int, item: dict[str, str]) -> HallucinationReport:
             nonlocal completed
-            async with semaphore:
-                query = item.get("query", "")
-                answer = item.get("answer", "")
-                item_domain = item.get("domain", domain)
-
+            query = item.get("query", "")
+            async with item_limiter:
                 try:
-                    report = await self.detect(query, answer, item_domain)
-                    results_dict[index] = report
+                    report = await self.detect(query, item.get("answer", ""))
                 except Exception as e:
                     logger.error(f"Error detecting item {index + 1}: {e}")
-                    results_dict[index] = HallucinationReport(
-                        risk_level="HIGH",
-                        confidence_score=0.0,
-                        flags=[f"Detection error: {str(e)}"],
-                        consistency_score=0.0,
-                        fact_checks=[],
-                        citation_checks=[],
-                        logic_checks=[],
-                        model_responses=[],
-                        disagreements=[],
-                        trace=[],
-                        metadata={"error": str(e), "query": query},
-                    )
+                    report = error_report(query, e)
+            completed += 1
+            if progress_callback:
+                progress_callback(completed, len(items))
+            return report
 
-                completed += 1
-                if progress_callback:
-                    progress_callback(completed, len(items))
-
-        # Create all tasks
-        tasks = [detect_with_limit(i, item) for i, item in enumerate(items)]
-
-        # Run all with concurrency control
-        await asyncio.gather(*tasks)
-
-        # Convert dict to list in order
-        return [results_dict[i] for i in range(len(items))]
+        return list(await asyncio.gather(*(run(i, item) for i, item in enumerate(items))))
 
     async def is_hallucination(
-        self,
-        query: str,
-        answer: str,
-        domain: Optional[str] = None,
-        threshold: Optional[list[str]] = None,
+        self, query: str, answer: str, threshold: Optional[list[str]] = None
     ) -> bool:
-        """Quick async check if an answer is likely a hallucination.
-
-        Args:
-            query: The original question.
-            answer: The answer to check.
-            domain: Optional domain context.
-            threshold: Risk levels to flag as hallucinations.
-
-        Returns:
-            True if likely a hallucination, False otherwise.
-        """
-        if threshold is None:
-            threshold = ["CRITICAL", "HIGH", "MEDIUM"]
-
-        report = await self.detect(query, answer, domain)
-        return report.risk_level in threshold
-
-    def get_trace(self) -> list[TraceStep]:
-        """Get detection trace from last run."""
-        return self._trace.copy()
+        """True if the risk level is in `threshold` (default: MEDIUM, HIGH, CRITICAL)."""
+        levels = threshold if threshold is not None else DEFAULT_THRESHOLD
+        report = await self.detect(query, answer)
+        return report.risk_level in levels
