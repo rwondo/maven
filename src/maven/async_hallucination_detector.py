@@ -14,7 +14,6 @@ from maven.consensus import TraceStep
 from maven.hallucination_detector import (
     HallucinationReport,
 )
-from maven.mcp_integration import MCPServerRegistry, create_mcp_server
 from maven.utils import DEFAULT_CONFIG, generate_trace_id, get_timestamp, merge_configs
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,6 @@ class AsyncHallucinationDetector:
         - Parallel model calls for faster detection
         - Batch detection with concurrency control
         - Domain-specific verification (medical, legal, financial)
-        - MCP tool integration
         - Rate limiting
 
     Example:
@@ -56,7 +54,6 @@ class AsyncHallucinationDetector:
         self,
         models: list[str],
         config: Optional[dict[str, Any]] = None,
-        mcp_servers: Optional[list[dict[str, Any]]] = None,
         rate_limit_delay: float = 0.5,
     ):
         """Initialize async hallucination detector.
@@ -64,7 +61,6 @@ class AsyncHallucinationDetector:
         Args:
             models: List of model identifiers (minimum 2 required).
             config: Optional configuration dictionary.
-            mcp_servers: Optional list of MCP server configurations.
             rate_limit_delay: Delay in seconds between API calls (default: 0.5).
         """
         if len(models) < 2:
@@ -76,16 +72,6 @@ class AsyncHallucinationDetector:
         self._trace: list[TraceStep] = []
         self._rate_limit_delay = rate_limit_delay
         self._rate_limiter = asyncio.Semaphore(len(models))  # Limit concurrent calls
-
-        # Initialize MCP server registry
-        self.mcp_registry = MCPServerRegistry()
-        if mcp_servers:
-            for server_config in mcp_servers:
-                server_type = server_config.get("type", "stdio")
-                server_name = server_config.get("name", f"server_{len(self.mcp_registry.servers)}")
-                server = create_mcp_server(server_type, server_name, server_config)
-                if server:
-                    self.mcp_registry.register_server(server)
 
         logger.info(f"Initialized AsyncHallucinationDetector with {len(models)} models")
 

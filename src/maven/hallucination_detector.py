@@ -15,7 +15,6 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 from maven.consensus import TraceStep
-from maven.mcp_integration import MCPServerRegistry, create_mcp_server
 from maven.models import ModelInterface, create_model
 from maven.utils import DEFAULT_CONFIG, generate_trace_id, get_timestamp, merge_configs
 
@@ -139,7 +138,6 @@ class HallucinationDetector:
         self,
         models: list[str],
         config: Optional[dict[str, Any]] = None,
-        mcp_servers: Optional[list[dict[str, Any]]] = None,
         rate_limit_delay: float = 1.0,
     ):
         """Initialize hallucination detector.
@@ -147,25 +145,8 @@ class HallucinationDetector:
         Args:
             models: List of model identifiers (minimum 2 required).
             config: Optional configuration dictionary.
-            mcp_servers: Optional list of MCP server configurations.
-                Each server config should have:
-                - name: Server name
-                - type: "stdio" or "http"
-                - Additional fields based on type (command, url, api_key, etc.)
             rate_limit_delay: Delay in seconds between API calls (default: 1.0).
 
-        Example:
-            detector = HallucinationDetector(
-                models=["llama", "qwen", "mixtral"],
-                mcp_servers=[
-                    {
-                        "name": "wikipedia",
-                        "type": "stdio",
-                        "command": "npx",
-                        "args": ["-y", "@modelcontextprotocol/server-wikipedia"]
-                    }
-                ]
-            )
         """
         if len(models) < 2:
             raise ValueError("At least 2 models required for hallucination detection")
@@ -177,19 +158,7 @@ class HallucinationDetector:
         self._rate_limit_delay = rate_limit_delay
         self._last_call_time: float = 0
 
-        # Initialize MCP server registry
-        self.mcp_registry = MCPServerRegistry()
-        if mcp_servers:
-            for server_config in mcp_servers:
-                server_type = server_config.get("type", "stdio")
-                server_name = server_config.get("name", f"server_{len(self.mcp_registry.servers)}")
-                server = create_mcp_server(server_type, server_name, server_config)
-                if server:
-                    self.mcp_registry.register_server(server)
-
-        logger.info(
-            f"Initialized HallucinationDetector with {len(models)} models and {len(self.mcp_registry.servers)} MCP servers"
-        )
+        logger.info(f"Initialized HallucinationDetector with {len(models)} models")
 
     def _rate_limit(self) -> None:
         """Apply rate limiting between API calls."""
@@ -207,90 +176,15 @@ class HallucinationDetector:
             self._models[model_id] = create_model(model_id)
         return self._models[model_id]
 
-    def _generate_with_tools(
-        self,
-        model_id: str,
-        prompt: str,
-        role: str,
-    ) -> str:
-        """Generate response and execute any tool calls via MCP servers."""
-        # Apply rate limiting
+    def _generate(self, model_id: str, prompt: str, role: str) -> str:
+        """Generate a response, turning API errors into an "Error: ..." string."""
         self._rate_limit()
-
         model = self._get_model(model_id)
-
         try:
-            content = model.generate(prompt, role)
+            return model.generate(prompt, role)
         except Exception as e:
             logger.error(f"Model {model_id} failed: {e}")
-            content = f"Error: {e}"
-
-        # Execute tool calls if MCP servers are configured
-        if self.mcp_registry.servers:
-            tool_calls = self._extract_mcp_tool_calls(content)
-            if tool_calls:
-                logger.info(f"Model {model_id} requested {len(tool_calls)} MCP tool(s)")
-                tool_results = self._execute_mcp_tools(tool_calls)
-                content = f"{content}\n\n[TOOL RESULTS]\n{tool_results}"
-
-        return content
-
-    def _extract_mcp_tool_calls(self, text: str) -> list[dict[str, Any]]:
-        """Extract MCP tool calls from model output.
-
-        Looks for patterns like:
-        USE_TOOL: wikipedia:search
-        QUERY: Albert Einstein
-
-        Or:
-        USE_TOOL: pubmed:search_papers
-        QUERY: aspirin cardiovascular
-        """
-        import re
-
-        tool_calls = []
-        tool_matches = re.finditer(r"USE_TOOL:\s*([^\n]+)", text, re.IGNORECASE)
-
-        for match in tool_matches:
-            tool_name = match.group(1).strip()
-            start_pos = match.end()
-
-            # Extract parameters until next tool call or end
-            next_match = re.search(r"USE_TOOL:", text[start_pos:], re.IGNORECASE)
-            if next_match:
-                params_text = text[start_pos : start_pos + next_match.start()]
-            else:
-                params_text = text[start_pos:]
-
-            # Extract parameter pairs
-            params = {}
-            param_matches = re.finditer(r"(\w+):\s*([^\n]+)", params_text)
-            for param_match in param_matches:
-                key = param_match.group(1).lower()
-                value = param_match.group(2).strip()
-                params[key] = value
-
-            tool_calls.append({"tool": tool_name, "params": params})
-
-        return tool_calls
-
-    def _execute_mcp_tools(self, tool_calls: list[dict[str, Any]]) -> str:
-        """Execute tool calls via MCP servers."""
-        if not tool_calls:
-            return ""
-
-        results = []
-        for call in tool_calls:
-            tool_name = call["tool"]
-            params = call["params"]
-
-            try:
-                result = self.mcp_registry.execute_tool(tool_name, params)
-                results.append(f"[{tool_name}] {result}")
-            except Exception as e:
-                results.append(f"[{tool_name}] Error: {str(e)}")
-
-        return "\n".join(results)
+            return f"Error: {e}"
 
     def detect(
         self,
@@ -343,15 +237,9 @@ Original Question: {query}
 Answer to Check:
 {answer}
 
-TOOLS AVAILABLE:
-- wikipedia: Verify factual claims
-  Example: USE_TOOL: wikipedia / QUERY: topic
-- calculator: Verify calculations
-  Example: USE_TOOL: calculator / EXPRESSION: 2+2
-
 Your task: Verify specific factual claims in this answer.
 
-Use tools to check any verifiable facts. Report:
+Report:
 FACTS_VERIFIED: [List what you checked]
 FACTS_FAILED: [List any facts that couldn't be verified or were wrong]
 CONFIDENCE: [High/Medium/Low]"""
@@ -384,7 +272,7 @@ CONFIDENCE: [High/Medium/Low]"""
         for i, model_id in enumerate(self.model_ids):
             logger.info(f"Running consistency check {i+1}/{len(self.model_ids)}")
 
-            response = self._generate_with_tools(
+            response = self._generate(
                 model_id, CONSISTENCY_PROMPT, f"consistency_checker_{i}"
             )
 
@@ -410,9 +298,9 @@ CONFIDENCE: [High/Medium/Low]"""
                 {"model": model_id, "verdict": verdict, "response": response[:300]}
             )
 
-        # Fact check (use first model with tools)
+        # Fact check (first model)
         logger.info("Running fact check")
-        fact_response = self._generate_with_tools(
+        fact_response = self._generate(
             self.model_ids[0], FACT_CHECK_PROMPT, "fact_checker"
         )
 
@@ -429,13 +317,12 @@ CONFIDENCE: [High/Medium/Low]"""
             {
                 "model": self.model_ids[0],
                 "response": fact_response[:500],
-                "tools_used": "[TOOL RESULTS]" in fact_response,
             }
         )
 
         # Citation check (use second model)
         logger.info("Running citation check")
-        citation_response = self._generate_with_tools(
+        citation_response = self._generate(
             self.model_ids[1] if len(self.model_ids) > 1 else self.model_ids[0],
             CITATION_PROMPT,
             "citation_checker",

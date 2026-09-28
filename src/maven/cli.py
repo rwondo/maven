@@ -205,7 +205,6 @@ def format_detection_result(report: Any, verbose: bool = False) -> str:
             lines.append("FACT CHECKS")
             for check in report.fact_checks:
                 lines.append(f"  Model: {check.get('model', 'Unknown')}")
-                lines.append(f"  Tools Used: {check.get('tools_used', False)}")
 
         if report.citation_checks:
             lines.append("")

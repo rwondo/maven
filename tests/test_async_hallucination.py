@@ -21,14 +21,6 @@ class TestAsyncHallucinationDetector:
         detector = AsyncHallucinationDetector(models=["model1", "model2"], rate_limit_delay=0.1)
         assert len(detector.model_ids) == 2
 
-    def test_init_with_mcp_servers(self):
-        """Should initialize MCP servers if provided."""
-        detector = AsyncHallucinationDetector(
-            models=["model1", "model2"],
-            mcp_servers=[{"name": "test", "type": "http", "url": "http://localhost:8080"}],
-        )
-        assert detector.mcp_registry is not None
-
     @pytest.mark.asyncio
     async def test_detect_returns_report(self):
         """Detect should return HallucinationReport."""

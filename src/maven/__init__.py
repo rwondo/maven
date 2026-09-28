@@ -76,15 +76,6 @@ from maven.consensus import ConsensusDetector, ConsensusResult, VerificationResu
 
 # Domain-specific prompts
 from maven.hallucination_detector import DOMAIN_PROMPTS, HallucinationDetector, HallucinationReport
-
-# MCP Server Integration
-from maven.mcp_integration import (
-    HTTPMCPServer,
-    MCPServer,
-    MCPServerRegistry,
-    StdioMCPServer,
-    create_mcp_server,
-)
 from maven.models import ModelInterface
 
 # Experimental features (consensus-based generation - not recommended)
@@ -107,12 +98,6 @@ __all__ = [
     "HallucinationDetector",
     "HallucinationReport",
     "DOMAIN_PROMPTS",
-    # MCP Server Integration
-    "MCPServer",
-    "MCPServerRegistry",
-    "StdioMCPServer",
-    "HTTPMCPServer",
-    "create_mcp_server",
     # Experimental (not recommended for generation)
     "ConsensusOrchestrator",
     "VerificationOrchestrator",
