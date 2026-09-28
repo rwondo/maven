@@ -3,7 +3,8 @@ name = "maven-ai"
 version = "2.0.0"
 description = "Prototype that asks several LLMs to review an answer and flags likely hallucinations"
 authors = [{name = "Arber Ferra", email = "ferraarber@gmail.com"}]
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.11"
 keywords = ["llm", "hallucination", "hallucination-detection", "evaluation", "multi-model"]
@@ -11,7 +12,6 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
@@ -52,7 +52,7 @@ Changelog = "https://github.com/rwondo/maven/blob/main/CHANGELOG.md"
 maven = "maven.cli:main"
 
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
