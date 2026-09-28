@@ -8,7 +8,7 @@ for integrating various AI model providers.
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from tenacity import retry, retry_if_not_exception_type, stop_after_attempt, wait_exponential
 
@@ -78,7 +78,7 @@ class ClaudeModel(ModelInterface):
             model_id: Claude model identifier.
         """
         super().__init__(model_id)
-        self._client: Optional[object] = None
+        self._client: object | None = None
 
     @property
     def client(self) -> Any:
@@ -89,7 +89,9 @@ class ClaudeModel(ModelInterface):
 
                 api_key = os.environ.get("ANTHROPIC_API_KEY")
                 if not api_key:
-                    raise ModelConfigError(f"ANTHROPIC_API_KEY is not set (needed for model {self.model_id!r})")
+                    raise ModelConfigError(
+                        f"ANTHROPIC_API_KEY is not set (needed for model {self.model_id!r})"
+                    )
                 self._client = anthropic.Anthropic(api_key=api_key)
             except ImportError as err:
                 raise ModelConfigError("anthropic package not installed") from err
@@ -119,7 +121,7 @@ class GPTModel(ModelInterface):
             model_id: GPT model identifier.
         """
         super().__init__(model_id)
-        self._client: Optional[object] = None
+        self._client: object | None = None
 
     @property
     def client(self) -> Any:
@@ -130,7 +132,9 @@ class GPTModel(ModelInterface):
 
                 api_key = os.environ.get("OPENAI_API_KEY")
                 if not api_key:
-                    raise ModelConfigError(f"OPENAI_API_KEY is not set (needed for model {self.model_id!r})")
+                    raise ModelConfigError(
+                        f"OPENAI_API_KEY is not set (needed for model {self.model_id!r})"
+                    )
                 self._client = openai.OpenAI(api_key=api_key)
             except ImportError as err:
                 raise ModelConfigError("openai package not installed") from err
@@ -161,7 +165,7 @@ class GeminiModel(ModelInterface):
             model_id: Gemini model identifier.
         """
         super().__init__(model_id)
-        self._model: Optional[object] = None
+        self._model: object | None = None
 
     @property
     def model(self) -> Any:
@@ -172,7 +176,9 @@ class GeminiModel(ModelInterface):
 
                 api_key = os.environ.get("GOOGLE_API_KEY")
                 if not api_key:
-                    raise ModelConfigError(f"GOOGLE_API_KEY is not set (needed for model {self.model_id!r})")
+                    raise ModelConfigError(
+                        f"GOOGLE_API_KEY is not set (needed for model {self.model_id!r})"
+                    )
                 genai.configure(api_key=api_key)
                 self._model = genai.GenerativeModel(self.model_id)
             except ImportError as err:
@@ -211,7 +217,7 @@ class TogetherModel(ModelInterface):
             model_id: Together AI model identifier (e.g., "meta-llama/Llama-3.3-70B-Instruct-Turbo").
         """
         super().__init__(model_id)
-        self._client: Optional[object] = None
+        self._client: object | None = None
 
     @property
     def client(self) -> Any:
@@ -222,7 +228,9 @@ class TogetherModel(ModelInterface):
 
                 api_key = os.environ.get("TOGETHER_API_KEY")
                 if not api_key:
-                    raise ModelConfigError(f"TOGETHER_API_KEY is not set (needed for model {self.model_id!r})")
+                    raise ModelConfigError(
+                        f"TOGETHER_API_KEY is not set (needed for model {self.model_id!r})"
+                    )
                 self._client = openai.OpenAI(
                     api_key=api_key,
                     base_url="https://api.together.xyz/v1",
@@ -249,7 +257,7 @@ class TogetherModel(ModelInterface):
 class MockModel(ModelInterface):
     """Mock model for testing purposes."""
 
-    def __init__(self, model_id: str = "mock-model", responses: Optional[dict] = None):
+    def __init__(self, model_id: str = "mock-model", responses: dict | None = None):
         """Initialize mock model.
 
         Args:

@@ -14,7 +14,9 @@ from maven.models import MockModel, ModelConfigError
 
 R, Q, U = "RELIABLE", "QUESTIONABLE", "UNRELIABLE"
 NO_FACT_ISSUES = "FACTS_VERIFIED: the date\nFACTS_FAILED: None\nCONFIDENCE: High"
-FACT_ISSUES = "FACTS_VERIFIED: -\nFACTS_FAILED: The 2023 Johnson study does not exist\nCONFIDENCE: High"
+FACT_ISSUES = (
+    "FACTS_VERIFIED: -\nFACTS_FAILED: The 2023 Johnson study does not exist\nCONFIDENCE: High"
+)
 NO_CITATION_ISSUES = "CITATIONS_FOUND: none\nSUSPICIOUS: None\nCONFIDENCE: High"
 CITATION_ISSUES = "CITATIONS_FOUND: Smith v. Jones\nSUSPICIOUS: Smith v. Jones looks invented"
 

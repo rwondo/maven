@@ -14,8 +14,9 @@ turned into a risk level by the fixed rules in calculate_risk().
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any
 
 from maven.models import ModelConfigError, ModelInterface, create_model
 from maven.utils import generate_trace_id, get_timestamp
@@ -95,7 +96,7 @@ class TraceStep:
     model: str
     content: str
     timestamp: str = field(default_factory=get_timestamp)
-    error: Optional[str] = None  # set when the API call failed
+    error: str | None = None  # set when the API call failed
 
     @property
     def summary(self) -> str:
@@ -320,7 +321,7 @@ class HallucinationDetector:
     def detect_batch(
         self,
         items: list[dict[str, str]],
-        progress_callback: Optional[Callable[[int, int], None]] = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> list[HallucinationReport]:
         """Check several {"query": ..., "answer": ...} items in order."""
         results = []
@@ -337,9 +338,7 @@ class HallucinationDetector:
                 progress_callback(i + 1, len(items))
         return results
 
-    def is_hallucination(
-        self, query: str, answer: str, threshold: Optional[list[str]] = None
-    ) -> bool:
+    def is_hallucination(self, query: str, answer: str, threshold: list[str] | None = None) -> bool:
         """True if the risk level is in `threshold` (default: MEDIUM, HIGH, CRITICAL)."""
         levels = threshold if threshold is not None else DEFAULT_THRESHOLD
         return self.detect(query, answer).risk_level in levels

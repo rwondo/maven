@@ -30,7 +30,11 @@ from maven.models import (
     [
         ("together/llama-3.1-8b", TogetherModel, "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"),
         ("qwen-2.5-7b", TogetherModel, "Qwen/Qwen2.5-7B-Instruct-Turbo"),
-        ("mistralai/Mixtral-8x7B-Instruct-v0.1", TogetherModel, "mistralai/Mixtral-8x7B-Instruct-v0.1"),
+        (
+            "mistralai/Mixtral-8x7B-Instruct-v0.1",
+            TogetherModel,
+            "mistralai/Mixtral-8x7B-Instruct-v0.1",
+        ),
         ("together/some-org/new-model", TogetherModel, "some-org/new-model"),
         ("claude-sonnet-4", ClaudeModel, "claude-sonnet-4"),
         ("gpt-4o", GPTModel, "gpt-4o"),

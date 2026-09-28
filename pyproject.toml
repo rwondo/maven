@@ -1,81 +1,50 @@
 [project]
 name = "maven-ai"
-version = "1.0.1"
-description = "Multi-Agent Verification Engine - Production-ready hallucination detection for high-stakes AI applications"
+version = "2.0.0"
+description = "Prototype that asks several LLMs to review an answer and flags likely hallucinations"
 authors = [{name = "Arber Ferra", email = "ferraarber@gmail.com"}]
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.9"
-keywords = [
-    "ai",
-    "llm",
-    "verification",
-    "consensus",
-    "hallucination",
-    "multi-agent",
-    "adversarial",
-    "safety",
-    "langchain",
-    "llamaindex",
-    "mcp",
-]
+requires-python = ">=3.10"
+keywords = ["llm", "hallucination", "hallucination-detection", "evaluation", "multi-model"]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Software Development :: Quality Assurance",
     "Typing :: Typed",
 ]
 
+# Lower bounds are the versions the test suite was run with; upper bounds stop the next
+# major release (which may break the API calls) from being installed automatically.
+# requirements-dev.lock pins exact versions for CI.
 dependencies = [
-    "anthropic>=0.18.0",
-    "openai>=1.0.0",
-    "google-generativeai>=0.3.0",
-    "pydantic>=2.0.0",
-    "httpx>=0.25.0",
-    "tenacity>=8.0.0",
+    "anthropic>=1.9,<2",
+    "google-generativeai>=0.8.6,<0.9",
+    "openai>=3.20,<4",
+    "tenacity>=9.1,<10",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "pytest-asyncio>=0.21.0",
-    "black==24.10.0",
-    "ruff>=0.1.0",
-    "mypy>=1.0.0",
-    "pre-commit>=3.0.0",
-    "types-requests>=2.31.0",
-]
-docs = [
-    "mkdocs>=1.5.0",
-    "mkdocs-material>=9.0.0",
-    "mkdocstrings[python]>=0.24.0",
-]
-langchain = [
-    "langchain>=0.1.0",
-    "langchain-core>=0.1.0",
-]
-llamaindex = [
-    "llama-index>=0.10.0",
-]
-all = [
-    "langchain>=0.1.0",
-    "langchain-core>=0.1.0",
-    "llama-index>=0.10.0",
+    "mypy>=2.3,<3",
+    "pre-commit>=4.6,<5",
+    "pytest>=9.1,<10",
+    "pytest-asyncio>=1.4,<2",
+    "pytest-cov>=7.1,<8",
+    "ruff>=0.16,<0.17",
 ]
 
 [project.urls]
 Homepage = "https://github.com/rwondo/maven"
-Documentation = "https://github.com/rwondo/maven#readme"
 Repository = "https://github.com/rwondo/maven.git"
 Issues = "https://github.com/rwondo/maven/issues"
 Changelog = "https://github.com/rwondo/maven/blob/main/CHANGELOG.md"
@@ -93,28 +62,9 @@ where = ["src"]
 [tool.setuptools.package-data]
 maven = ["py.typed"]
 
-[tool.black]
-line-length = 100
-target-version = ["py39", "py310", "py311", "py312"]
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
-
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 
 [tool.ruff.lint]
 select = [
@@ -129,17 +79,14 @@ select = [
     "SIM", # flake8-simplify
 ]
 ignore = [
-    "E501",  # line too long (handled by black)
-    "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
+    "E501",  # long lines: the formatter wraps code; long strings are left as they are
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]
 "tests/*" = ["ARG"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -150,18 +97,11 @@ no_implicit_optional = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 warn_no_return = true
-follow_imports = "normal"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py"]
-python_functions = ["test_*"]
-addopts = "-v --tb=short --strict-markers"
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks tests as integration tests",
-]
+addopts = "--strict-markers"
 asyncio_mode = "auto"
 filterwarnings = [
     # google-generativeai warns on import that it is no longer maintained (see README)
@@ -169,16 +109,5 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["src/maven"]
+source = ["maven"]
 branch = true
-omit = ["*/tests/*", "*/__init__.py"]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-]

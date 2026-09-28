@@ -7,7 +7,7 @@ one after another, with a semaphore capping how many are in flight at once.
 
 import asyncio
 import logging
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from maven.async_models import AsyncModelInterface, create_async_model
 from maven.hallucination_detector import (
@@ -43,7 +43,7 @@ class AsyncHallucinationDetector:
         self,
         models: list[str],
         rate_limit_delay: float = 0.5,
-        max_concurrent_calls: Optional[int] = None,
+        max_concurrent_calls: int | None = None,
     ):
         """Create a detector.
 
@@ -62,8 +62,8 @@ class AsyncHallucinationDetector:
         self._rate_limit_delay = rate_limit_delay
         self._max_concurrent_calls = max_concurrent_calls or len(models)
         # A semaphore belongs to one event loop, so it is created on first use per loop.
-        self._call_limiter: Optional[asyncio.Semaphore] = None
-        self._limiter_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._call_limiter: asyncio.Semaphore | None = None
+        self._limiter_loop: asyncio.AbstractEventLoop | None = None
 
     def _get_model(self, model_id: str) -> AsyncModelInterface:
         if model_id not in self._models:
@@ -107,7 +107,7 @@ class AsyncHallucinationDetector:
         self,
         items: list[dict[str, str]],
         max_concurrent: int = 5,
-        progress_callback: Optional[Callable[[int, int], None]] = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> list[HallucinationReport]:
         """Check several {"query": ..., "answer": ...} items; results keep input order.
 
@@ -138,7 +138,7 @@ class AsyncHallucinationDetector:
         return list(await asyncio.gather(*(run(i, item) for i, item in enumerate(items))))
 
     async def is_hallucination(
-        self, query: str, answer: str, threshold: Optional[list[str]] = None
+        self, query: str, answer: str, threshold: list[str] | None = None
     ) -> bool:
         """True if the risk level is in `threshold` (default: MEDIUM, HIGH, CRITICAL)."""
         levels = threshold if threshold is not None else DEFAULT_THRESHOLD

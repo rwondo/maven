@@ -15,7 +15,6 @@ import argparse
 import json
 import logging
 import sys
-from typing import Optional
 
 from maven import __version__
 from maven.hallucination_detector import HallucinationDetector, HallucinationReport
@@ -95,7 +94,7 @@ def format_report(report: HallucinationReport, verbose: bool = False) -> str:
     return "\n".join(lines)
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns the process exit code."""
     args = create_parser().parse_args(argv)
     logging.basicConfig(

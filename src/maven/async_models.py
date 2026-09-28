@@ -8,7 +8,7 @@ for use with AsyncHallucinationDetector.
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from maven.models import API_RETRY, TOGETHER_MODEL_ALIASES, ModelConfigError, resolve_model_alias
 
@@ -48,7 +48,7 @@ class AsyncClaudeModel(AsyncModelInterface):
 
     def __init__(self, model_id: str = "claude-sonnet-4"):
         super().__init__(model_id)
-        self._client: Optional[object] = None
+        self._client: object | None = None
 
     @property
     def client(self) -> Any:
@@ -59,7 +59,9 @@ class AsyncClaudeModel(AsyncModelInterface):
 
                 api_key = os.environ.get("ANTHROPIC_API_KEY")
                 if not api_key:
-                    raise ModelConfigError(f"ANTHROPIC_API_KEY is not set (needed for model {self.model_id!r})")
+                    raise ModelConfigError(
+                        f"ANTHROPIC_API_KEY is not set (needed for model {self.model_id!r})"
+                    )
                 self._client = anthropic.AsyncAnthropic(api_key=api_key)
             except ImportError as err:
                 raise ModelConfigError("anthropic package not installed") from err
@@ -84,7 +86,7 @@ class AsyncGPTModel(AsyncModelInterface):
 
     def __init__(self, model_id: str = "gpt-4"):
         super().__init__(model_id)
-        self._client: Optional[object] = None
+        self._client: object | None = None
 
     @property
     def client(self) -> Any:
@@ -95,7 +97,9 @@ class AsyncGPTModel(AsyncModelInterface):
 
                 api_key = os.environ.get("OPENAI_API_KEY")
                 if not api_key:
-                    raise ModelConfigError(f"OPENAI_API_KEY is not set (needed for model {self.model_id!r})")
+                    raise ModelConfigError(
+                        f"OPENAI_API_KEY is not set (needed for model {self.model_id!r})"
+                    )
                 self._client = openai.AsyncOpenAI(api_key=api_key)
             except ImportError as err:
                 raise ModelConfigError("openai package not installed") from err
@@ -121,7 +125,7 @@ class AsyncGeminiModel(AsyncModelInterface):
 
     def __init__(self, model_id: str = "gemini-pro"):
         super().__init__(model_id)
-        self._model: Optional[object] = None
+        self._model: object | None = None
 
     @property
     def model(self) -> Any:
@@ -132,7 +136,9 @@ class AsyncGeminiModel(AsyncModelInterface):
 
                 api_key = os.environ.get("GOOGLE_API_KEY")
                 if not api_key:
-                    raise ModelConfigError(f"GOOGLE_API_KEY is not set (needed for model {self.model_id!r})")
+                    raise ModelConfigError(
+                        f"GOOGLE_API_KEY is not set (needed for model {self.model_id!r})"
+                    )
                 genai.configure(api_key=api_key)
                 self._model = genai.GenerativeModel(self.model_id)
             except ImportError as err:
@@ -170,7 +176,7 @@ class AsyncTogetherModel(AsyncModelInterface):
             model_id: Together AI model identifier.
         """
         super().__init__(model_id)
-        self._client: Optional[object] = None
+        self._client: object | None = None
 
     @property
     def client(self) -> Any:
@@ -181,7 +187,9 @@ class AsyncTogetherModel(AsyncModelInterface):
 
                 api_key = os.environ.get("TOGETHER_API_KEY")
                 if not api_key:
-                    raise ModelConfigError(f"TOGETHER_API_KEY is not set (needed for model {self.model_id!r})")
+                    raise ModelConfigError(
+                        f"TOGETHER_API_KEY is not set (needed for model {self.model_id!r})"
+                    )
                 self._client = openai.AsyncOpenAI(
                     api_key=api_key,
                     base_url="https://api.together.xyz/v1",
@@ -208,7 +216,7 @@ class AsyncTogetherModel(AsyncModelInterface):
 class AsyncMockModel(AsyncModelInterface):
     """Async mock model for testing."""
 
-    def __init__(self, model_id: str = "mock-model", responses: Optional[dict] = None):
+    def __init__(self, model_id: str = "mock-model", responses: dict | None = None):
         super().__init__(model_id)
         self.responses = responses or {}
         self.call_count = 0
@@ -221,7 +229,6 @@ class AsyncMockModel(AsyncModelInterface):
             return str(self.responses[role])
 
         return f"Async mock response from {self.model_id} as {role}"
-
 
 
 def create_async_model(model_id: str) -> AsyncModelInterface:
