@@ -14,11 +14,29 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-from maven.consensus import TraceStep
 from maven.models import ModelInterface, create_model
-from maven.utils import DEFAULT_CONFIG, generate_trace_id, get_timestamp, merge_configs
+from maven.utils import generate_trace_id, get_timestamp
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class TraceStep:
+    """One model call made during a detection run."""
+
+    iteration: int
+    role: str
+    model: str
+    content: str
+    timestamp: str = field(default_factory=get_timestamp)
+
+    @property
+    def summary(self) -> str:
+        """First 100 characters of the model's reply."""
+        max_len = 100
+        if len(self.content) <= max_len:
+            return self.content
+        return self.content[: max_len - 3] + "..."
 
 
 @dataclass
@@ -137,14 +155,12 @@ class HallucinationDetector:
     def __init__(
         self,
         models: list[str],
-        config: Optional[dict[str, Any]] = None,
         rate_limit_delay: float = 1.0,
     ):
         """Initialize hallucination detector.
 
         Args:
             models: List of model identifiers (minimum 2 required).
-            config: Optional configuration dictionary.
             rate_limit_delay: Delay in seconds between API calls (default: 1.0).
 
         """
@@ -152,7 +168,6 @@ class HallucinationDetector:
             raise ValueError("At least 2 models required for hallucination detection")
 
         self.model_ids = models
-        self.config = merge_configs(DEFAULT_CONFIG, config)
         self._models: dict[str, ModelInterface] = {}
         self._trace: list[TraceStep] = []
         self._rate_limit_delay = rate_limit_delay

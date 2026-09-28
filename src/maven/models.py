@@ -36,7 +36,7 @@ class ModelInterface(ABC):
 
         Args:
             prompt: The formatted prompt including system instructions.
-            role: The role this model is playing (architect/skeptic/mediator).
+            role: Label for the check being run (used in logs and the trace).
 
         Returns:
             The model's response text.

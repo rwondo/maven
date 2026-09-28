@@ -1,121 +1,35 @@
-"""
-MAVEN - Multi-Agent Verification & Evaluation Network
+"""MAVEN: ask several LLMs to review an answer and flag likely hallucinations.
 
-Production-ready hallucination detection for high-stakes domains using
-multi-model verification.
-
-Primary Use Case: Flag dangerous AI hallucinations in law, medicine, finance,
-and other critical applications where errors could cause serious harm.
-
-Key Finding: 85.3% hallucination detection rate on TruthfulQA with 82% accuracy.
-Better to flag a few good answers than miss dangerous hallucinations.
-
-v1.0 Features:
-    - Hallucination Detection: Multi-model consensus for catching AI fabrications
-    - Async/Parallel: Full async support for batch processing
-    - Domain-Specific: Specialized prompts for medical, legal, financial domains
-    - Framework Integration: LangChain and LlamaIndex support
-    - MCP Support: Model Context Protocol for external tool verification
-
-Basic Usage:
+Example:
     from maven import HallucinationDetector
 
     detector = HallucinationDetector(
         models=["together/llama-3.1-8b", "together/qwen-2.5-7b", "together/mixtral-8x7b"]
     )
-
-    # Check an AI-generated answer for hallucinations
     report = detector.detect(
-        query="What are contraindications for aspirin?",
-        answer="According to the 2023 Johnson Study, aspirin causes...",
-        domain="medical"
+        query="Who wrote Pride and Prejudice?",
+        answer="Charlotte Bronte wrote it in 1847.",
     )
-
-    print(f"Risk Level: {report.risk_level}")  # LOW, MEDIUM, HIGH, or CRITICAL
-    print(f"Confidence: {report.confidence_score}%")
-    print(f"Flags: {report.flags}")
-
-    # In production: Block or warn on CRITICAL/HIGH risk responses
-
-Async Batch Processing:
-    from maven import AsyncHallucinationDetector
-    import asyncio
-
-    async def check_batch():
-        detector = AsyncHallucinationDetector(models=["llama", "qwen", "mixtral"])
-        reports = await detector.detect_batch([
-            {"query": "Q1", "answer": "A1"},
-            {"query": "Q2", "answer": "A2"},
-        ], max_concurrent=5)
-        return reports
-
-LangChain Integration:
-    from maven.integrations import MAVENChain, MAVENCallbackHandler
-
-    # Callback for automatic detection
-    handler = MAVENCallbackHandler(models=["llama", "qwen"])
-    llm = OpenAI(callbacks=[handler])
-
-    # Or wrap a chain
-    safe_chain = MAVENChain(chain=my_chain, models=["llama", "qwen"])
-
-LlamaIndex Integration:
-    from maven.integrations import MAVENQueryEngine
-
-    safe_engine = MAVENQueryEngine(
-        query_engine=index.as_query_engine(),
-        models=["llama", "qwen"]
-    )
+    print(report.risk_level, report.flags)
 """
 
-__version__ = "1.0.0"  # Production-ready release
-__author__ = "Arber Ferra"
+from importlib.metadata import PackageNotFoundError, version
 
-# Primary API
-from maven.consensus import ConsensusDetector, ConsensusResult, VerificationResult
+from maven.async_hallucination_detector import AsyncHallucinationDetector
+from maven.hallucination_detector import HallucinationDetector, HallucinationReport, TraceStep
+from maven.models import ModelInterface, create_model
 
-# Domain-specific prompts
-from maven.hallucination_detector import DOMAIN_PROMPTS, HallucinationDetector, HallucinationReport
-from maven.models import ModelInterface
-
-# Experimental features (consensus-based generation - not recommended)
-from maven.orchestrator import ConsensusOrchestrator, VerificationOrchestrator
-from maven.roles import RolePrompts
-
-# Async support
 try:
-    from maven.async_hallucination_detector import AsyncHallucinationDetector
-    from maven.async_models import AsyncModelInterface
-    from maven.async_orchestrator import AsyncConsensusOrchestrator
-
-    _async_available = True
-except ImportError:
-    _async_available = False
-
+    __version__ = version("maven-ai")
+except PackageNotFoundError:  # imported from a source tree that was never installed
+    __version__ = "0+unknown"
 
 __all__ = [
-    # Primary API (recommended)
+    "AsyncHallucinationDetector",
     "HallucinationDetector",
     "HallucinationReport",
-    "DOMAIN_PROMPTS",
-    # Experimental (not recommended for generation)
-    "ConsensusOrchestrator",
-    "VerificationOrchestrator",
-    "ConsensusResult",
-    "VerificationResult",
-    "ConsensusDetector",
-    # Common exports
     "ModelInterface",
-    "RolePrompts",
+    "TraceStep",
     "__version__",
+    "create_model",
 ]
-
-if _async_available:
-    __all__.extend(
-        [
-            "AsyncHallucinationDetector",
-            "AsyncConsensusOrchestrator",
-            "AsyncModelInterface",
-        ]
-    )
-

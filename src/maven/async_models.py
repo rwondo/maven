@@ -2,7 +2,7 @@
 Async model interfaces for MAVEN.
 
 This module provides asynchronous versions of model integrations
-for use with AsyncConsensusOrchestrator.
+for use with AsyncHallucinationDetector.
 """
 
 import logging

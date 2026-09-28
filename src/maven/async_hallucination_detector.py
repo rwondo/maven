@@ -10,11 +10,8 @@ import logging
 from typing import Any, Callable, Optional
 
 from maven.async_models import AsyncModelInterface, create_async_model
-from maven.consensus import TraceStep
-from maven.hallucination_detector import (
-    HallucinationReport,
-)
-from maven.utils import DEFAULT_CONFIG, generate_trace_id, get_timestamp, merge_configs
+from maven.hallucination_detector import HallucinationReport, TraceStep
+from maven.utils import generate_trace_id, get_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -53,21 +50,18 @@ class AsyncHallucinationDetector:
     def __init__(
         self,
         models: list[str],
-        config: Optional[dict[str, Any]] = None,
         rate_limit_delay: float = 0.5,
     ):
         """Initialize async hallucination detector.
 
         Args:
             models: List of model identifiers (minimum 2 required).
-            config: Optional configuration dictionary.
             rate_limit_delay: Delay in seconds between API calls (default: 0.5).
         """
         if len(models) < 2:
             raise ValueError("At least 2 models required for hallucination detection")
 
         self.model_ids = models
-        self.config = merge_configs(DEFAULT_CONFIG, config)
         self._models: dict[str, AsyncModelInterface] = {}
         self._trace: list[TraceStep] = []
         self._rate_limit_delay = rate_limit_delay

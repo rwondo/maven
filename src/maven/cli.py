@@ -1,360 +1,127 @@
-"""
-Command-line interface for MAVEN.
-
-This module provides a CLI for running verification queries
-from the terminal.
+"""Command-line interface: check one answer for likely hallucinations.
 
 Usage:
-    maven "What is the capital of France?"
-    maven --models claude-sonnet-4,gpt-4,gemini-pro "Your query"
-    maven --config config.json "Your query"
+    maven --answer "Charlotte Bronte wrote it in 1847." "Who wrote Pride and Prejudice?"
+    maven --models together/llama-3.1-8b,gpt-4o --json --answer "..." "question"
+
+Exit codes:
+    0  LOW or MEDIUM risk
+    1  error (for example a missing API key)
+    2  invalid command-line arguments
+    3  HIGH or CRITICAL risk
 """
 
 import argparse
 import json
 import logging
 import sys
-from typing import Any, Optional
+from typing import Optional
 
-from maven import ConsensusOrchestrator, __version__
-from maven.consensus import ConsensusResult
+from maven import __version__
+from maven.hallucination_detector import HallucinationDetector, HallucinationReport
 
-
-def setup_logging(verbose: bool = False) -> None:
-    """Configure logging for CLI."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+DEFAULT_MODELS = "together/llama-3.1-8b,together/qwen-2.5-7b,together/mixtral-8x7b"
+EXIT_HIGH_RISK = 3
 
 
 def parse_models(models_str: str) -> list[str]:
-    """Parse comma-separated model string."""
+    """Split a comma-separated model list."""
     return [m.strip() for m in models_str.split(",") if m.strip()]
 
 
-def format_result(result: ConsensusResult, verbose: bool = False) -> str:
-    """Format verification result for display."""
-    lines = []
-    lines.append("")
-    lines.append("=" * 60)
-    lines.append("VERIFICATION RESULT")
-    lines.append("=" * 60)
-    lines.append("")
-    lines.append(f"Consensus: {result.consensus}")
-    lines.append(f"Confidence: {result.confidence:.1f}%")
-    lines.append(f"Iterations: {result.iterations}")
-
-    if result.dissent:
-        lines.append(f"Dissent: {result.dissent}")
-
-    if verbose and result.trace:
-        lines.append("")
-        lines.append("-" * 60)
-        lines.append("VERIFICATION TRACE")
-        lines.append("-" * 60)
-
-        for step in result.trace:
-            lines.append(f"\n[Iteration {step.iteration}] {step.role.upper()} ({step.model})")
-            lines.append(step.summary)
-
-    lines.append("")
-    return "\n".join(lines)
-
-
-def format_json(result: ConsensusResult) -> str:
-    """Format result as JSON."""
-    return json.dumps(result.to_dict(), indent=2, default=str)
-
-
 def create_parser() -> argparse.ArgumentParser:
-    """Create argument parser."""
+    """Build the argument parser."""
     parser = argparse.ArgumentParser(
         prog="maven",
-        description="Multi-Agent Verification & Evaluation Network - "
-        "Reduce AI hallucinations through multi-model consensus.",
+        description="Ask several LLMs to review an answer and report how likely it is "
+        "to contain hallucinations.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  maven "What is the capital of France?"
-  maven --models claude-sonnet-4,gpt-4,gemini-pro "Your query"
-  maven --iterations 3 "Complex question here"
-  maven --json "Query for JSON output"
-
-Environment Variables:
-  ANTHROPIC_API_KEY    API key for Claude models
-  OPENAI_API_KEY       API key for GPT models
-  GOOGLE_API_KEY       API key for Gemini models
+Environment variables (set the ones for the providers you use):
+  TOGETHER_API_KEY     Together AI models (together/...)
+  OPENAI_API_KEY       OpenAI models (gpt-...)
+  ANTHROPIC_API_KEY    Anthropic models (claude-...)
+  GOOGLE_API_KEY       Google models (gemini-...)
         """,
     )
-
-    parser.add_argument(
-        "query",
-        nargs="?",
-        help="The query to verify",
-    )
-
+    parser.add_argument("query", help="the question the answer responds to")
+    parser.add_argument("-a", "--answer", required=True, help="the answer to check")
     parser.add_argument(
         "-m",
         "--models",
-        default="claude-sonnet-4,gpt-4,gemini-pro",
-        help="Comma-separated list of models (default: claude-sonnet-4,gpt-4,gemini-pro)",
+        default=DEFAULT_MODELS,
+        help=f"comma-separated reviewer models, at least 2 (default: {DEFAULT_MODELS})",
     )
-
-    parser.add_argument(
-        "-i",
-        "--iterations",
-        type=int,
-        default=5,
-        help="Maximum verification iterations (default: 5)",
-    )
-
-    parser.add_argument(
-        "-t",
-        "--threshold",
-        type=float,
-        default=0.8,
-        help="Consensus threshold 0.0-1.0 (default: 0.8)",
-    )
-
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=60,
-        help="Timeout in seconds per iteration (default: 60)",
-    )
-
-    parser.add_argument(
-        "-c",
-        "--config",
-        help="Path to JSON configuration file",
-    )
-
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output result as JSON",
-    )
-
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Show detailed trace output",
-    )
-
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"maven {__version__}",
-    )
-
-    # Hallucination detection mode (recommended)
-    parser.add_argument(
-        "-d",
-        "--detect",
-        action="store_true",
-        help="Use hallucination detection mode (recommended). Requires --answer flag.",
-    )
-
-    parser.add_argument(
-        "-a",
-        "--answer",
-        help="The AI-generated answer to verify for hallucinations (use with --detect).",
-    )
-
     parser.add_argument(
         "--domain",
         choices=["medical", "legal", "financial"],
-        help="Domain context for specialized hallucination detection.",
+        help="domain context for the check",
     )
-
+    parser.add_argument("--json", action="store_true", help="print the full report as JSON")
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="show each model's reply and debug logs"
+    )
+    parser.add_argument("--version", action="version", version=f"maven {__version__}")
     return parser
 
 
-def format_detection_result(report: Any, verbose: bool = False) -> str:
-    """Format hallucination detection result for display."""
-    lines = []
-    lines.append("")
-    lines.append("=" * 60)
-    lines.append("HALLUCINATION DETECTION RESULT")
-    lines.append("=" * 60)
-    lines.append("")
-    lines.append(f"Risk Level: {report.risk_level}")
-    lines.append(f"Confidence: {report.confidence_score:.1f}%")
-    lines.append(f"Consistency: {report.consistency_score:.1f}%")
+def format_report(report: HallucinationReport, verbose: bool = False) -> str:
+    """Format a report for the terminal."""
+    lines = [
+        f"Risk level:     {report.risk_level}",
+        f"Reliable votes: {report.confidence_score:.0f}% of reviewer models",
+    ]
 
     if report.flags:
-        lines.append("")
         lines.append("Flags:")
-        for flag in report.flags:
-            lines.append(f"  - {flag}")
+        lines.extend(f"  - {flag}" for flag in report.flags)
+    else:
+        lines.append("Flags:          none")
 
     if report.disagreements:
-        lines.append("")
-        lines.append("Model Disagreements:")
-        for disagreement in report.disagreements:
-            lines.append(f"  - {disagreement}")
+        lines.append("Disagreements:")
+        lines.extend(f"  - {d}" for d in report.disagreements)
 
     if verbose:
-        if report.fact_checks:
+        for step in report.trace:
             lines.append("")
-            lines.append("-" * 60)
-            lines.append("FACT CHECKS")
-            for check in report.fact_checks:
-                lines.append(f"  Model: {check.get('model', 'Unknown')}")
-
-        if report.citation_checks:
-            lines.append("")
-            lines.append("-" * 60)
-            lines.append("CITATION CHECKS")
-            for check in report.citation_checks:
-                lines.append(f"  Model: {check.get('model', 'Unknown')}")
+            lines.append(f"--- {step.role} ({step.model}) ---")
+            lines.append(step.content.strip())
 
     lines.append("")
-
-    # Recommendation
-    if report.risk_level in ["CRITICAL", "HIGH"]:
-        lines.append("! RECOMMENDATION: Do NOT trust this answer. High risk of hallucination.")
+    if report.risk_level in ("CRITICAL", "HIGH"):
+        lines.append("Recommendation: do not rely on this answer without checking it.")
     elif report.risk_level == "MEDIUM":
-        lines.append("! RECOMMENDATION: Verify this answer independently before use.")
+        lines.append("Recommendation: the reviewers were not unanimous; verify key claims.")
     else:
-        lines.append(
-            "* RECOMMENDATION: Answer appears reliable, but always verify critical claims."
-        )
-
-    lines.append("")
+        lines.append("Recommendation: no problems found, but still verify anything important.")
     return "\n".join(lines)
 
 
-def load_config(config_path: str) -> dict[str, Any]:
-    """Load configuration from JSON file."""
-    try:
-        with open(config_path, encoding="utf-8") as f:
-            config: dict[str, Any] = json.load(f)
-            return config
-    except FileNotFoundError:
-        print(f"Error: Config file not found: {config_path}", file=sys.stderr)
-        sys.exit(1)
-    except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON in config file: {e}", file=sys.stderr)
-        sys.exit(1)
-
-
 def main(argv: Optional[list[str]] = None) -> int:
-    """Main CLI entry point.
-
-    Args:
-        argv: Command line arguments (defaults to sys.argv).
-
-    Returns:
-        Exit code (0 for success, non-zero for errors).
-    """
-    parser = create_parser()
-    args = parser.parse_args(argv)
-
-    # Check for query
-    if not args.query:
-        parser.print_help()
-        return 1
-
-    setup_logging(args.verbose)
-
-    # Build configuration
-    config = {}
-
-    if args.config:
-        config = load_config(args.config)
-
-    # CLI args override config file
-    config["max_iterations"] = args.iterations
-    config["consensus_threshold"] = args.threshold
-    config["timeout_seconds"] = args.timeout
-
-    # Parse models
-    models = parse_models(args.models)
+    """CLI entry point. Returns the process exit code."""
+    args = create_parser().parse_args(argv)
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.WARNING,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
 
     try:
-        # Hallucination detection mode (recommended)
-        if args.detect:
-            if not args.answer:
-                print("Error: --answer is required with --detect mode", file=sys.stderr)
-                print(
-                    "Usage: maven --detect --answer 'AI response' 'Your question'", file=sys.stderr
-                )
-                return 1
-
-            if len(models) < 2:
-                print(
-                    "Error: At least 2 models required for hallucination detection", file=sys.stderr
-                )
-                return 1
-
-            from maven import HallucinationDetector
-
-            if not args.json:
-                print(f"\nDetecting hallucinations in answer to: {args.query}")
-                print("Running multi-model verification...")
-
-            detector = HallucinationDetector(models=models)
-            report = detector.detect(
-                query=args.query,
-                answer=args.answer,
-                domain=args.domain,
-            )
-
-            if args.json:
-                print(json.dumps(report.to_dict(), indent=2, default=str))
-            else:
-                print(format_detection_result(report, verbose=args.verbose))
-
-            # Return non-zero for high-risk detections
-            if report.risk_level in ["CRITICAL", "HIGH"]:
-                return 2  # Hallucination detected
-            return 0
-
-        # Legacy consensus mode (not recommended)
-        if len(models) < 3:
-            print("Error: At least 3 models required for consensus", file=sys.stderr)
-            print(
-                "Tip: Use --detect mode for hallucination detection (only needs 2 models)",
-                file=sys.stderr,
-            )
-            return 1
-
-        # Create orchestrator
-        orchestrator = ConsensusOrchestrator(
-            models=models,
-            config=config,
-        )
-
-        # Run verification
-        if not args.json:
-            print(f"\nVerifying: {args.query}")
-            print("Running multi-model verification...")
-
-        result = orchestrator.verify(args.query)
-
-        # Output result
-        if args.json:
-            print(format_json(result))
-        else:
-            print(format_result(result, verbose=args.verbose))
-
-        return 0
-
+        detector = HallucinationDetector(models=parse_models(args.models))
+        report = detector.detect(query=args.query, answer=args.answer, domain=args.domain)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
-        print("\nVerification cancelled.", file=sys.stderr)
+        print("\nCancelled.", file=sys.stderr)
         return 130
-    except Exception as e:
-        logging.exception("Unexpected error")
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2, default=str))
+    else:
+        print(format_report(report, verbose=args.verbose))
+
+    return EXIT_HIGH_RISK if report.risk_level in ("CRITICAL", "HIGH") else 0
 
 
 if __name__ == "__main__":
