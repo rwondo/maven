@@ -32,7 +32,7 @@ import sys
 import urllib.request
 from collections import Counter
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from maven import AsyncHallucinationDetector, HallucinationReport, ModelConfigError, __version__
@@ -219,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
         f"model call failed); seed {args.seed}; models: {', '.join(models)}; maven {__version__}."
     )
 
-    run_at = datetime.now(timezone.utc)
+    run_at = datetime.now(UTC)
     output = args.output or Path("results") / f"truthfulqa-{run_at:%Y%m%d-%H%M%S}.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(

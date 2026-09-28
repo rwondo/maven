@@ -1,7 +1,7 @@
 # MAVEN
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
 MAVEN (Multi-Agent Verification Engine) asks several large language models to review an answer written by another model and flags answers that probably contain made-up facts or sources. It is a prototype I built to learn how far a simple "second opinion" approach gets.
 
@@ -68,16 +68,16 @@ Checking one answer with N reviewer models costs N + 2 API calls. `Hallucination
 
 ## Tech stack
 
-- Python 3.10+ with `asyncio`
+- Python 3.11+ with `asyncio`
 - Provider SDKs: `openai` (also used for Together AI, whose API follows the OpenAI format), `anthropic` and `google-generativeai`
 - `tenacity` for retries
 - pytest and pytest-asyncio for tests; no test calls a real API
 - ruff for linting and formatting, mypy for type checking, pre-commit
-- GitHub Actions CI on Python 3.10 to 3.14, with dependencies pinned in `requirements-dev.lock` (generated with uv)
+- GitHub Actions CI on Python 3.11 to 3.14, with dependencies pinned in `requirements-dev.lock` (generated with uv)
 
 ## Getting started
 
-You need Python 3.10 or newer.
+You need Python 3.11 or newer.
 
 ```bash
 git clone https://github.com/rwondo/maven.git

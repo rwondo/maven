@@ -1,7 +1,7 @@
 """Small helpers shared by the detectors."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def generate_trace_id() -> str:
@@ -11,4 +11,4 @@ def generate_trace_id() -> str:
 
 def get_timestamp() -> str:
     """Return the current UTC time as an ISO 8601 string."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()

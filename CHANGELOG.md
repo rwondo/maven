@@ -15,7 +15,7 @@ A smaller package that only checks answers, with the claims in the documentation
 - The LangChain and LlamaIndex wrappers. The LangChain callback handler crashed with a real `langchain-core` install.
 - `DOMAIN_PROMPTS` and the `domain` argument (the prompts never used them), the `config` and `mcp_servers` arguments, `logic_checks`, `consistency_score` and `get_trace()`.
 - The `docs/` folder, now covered by the README.
-- Support for Python 3.9.
+- Support for Python 3.9 and 3.10 (3.10 reaches end of life in October 2026).
 
 ### Changed
 - `confidence_score` is renamed `reliable_share`, since it is the share of models that voted RELIABLE. Reports now include each model's verdict.

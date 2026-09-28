@@ -27,7 +27,7 @@ mypy src scripts
 CI installs the exact versions in `requirements-dev.lock`. After changing dependencies in `pyproject.toml`, regenerate it with:
 
 ```bash
-uv pip compile pyproject.toml --extra dev --universal --python-version 3.10 -o requirements-dev.lock
+uv pip compile pyproject.toml --extra dev --universal --python-version 3.11 -o requirements-dev.lock
 ```
 
 ## Guidelines
