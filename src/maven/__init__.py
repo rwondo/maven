@@ -101,29 +101,6 @@ try:
 except ImportError:
     _async_available = False
 
-# Framework integrations (optional)
-try:
-    from maven.integrations import (
-        # Common
-        HallucinationCheckResult,
-        HallucinationError,
-        # LangChain
-        MAVENCallbackHandler,
-        MAVENChain,
-        # LlamaIndex
-        MAVENQueryEngine,
-        MAVENResponse,
-        MAVENResponseEvaluator,
-        MAVENRetriever,
-        # Factory functions
-        create_langchain_callback,
-        wrap_langchain_chain,
-        wrap_llamaindex_engine,
-    )
-
-    _integrations_available = True
-except ImportError:
-    _integrations_available = False
 
 __all__ = [
     # Primary API (recommended)
@@ -157,23 +134,3 @@ if _async_available:
         ]
     )
 
-if _integrations_available:
-    __all__.extend(
-        [
-            # LangChain
-            "MAVENCallbackHandler",
-            "MAVENChain",
-            "MAVENRetriever",
-            # LlamaIndex
-            "MAVENQueryEngine",
-            "MAVENResponseEvaluator",
-            "MAVENResponse",
-            # Common
-            "HallucinationCheckResult",
-            "HallucinationError",
-            # Factory functions
-            "create_langchain_callback",
-            "wrap_langchain_chain",
-            "wrap_llamaindex_engine",
-        ]
-    )
