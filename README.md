@@ -1,517 +1,173 @@
-# MAVEN - Multi-Agent Verification Engine
+# MAVEN
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![PyPI Version](https://img.shields.io/pypi/v/maven-ai.svg)](https://pypi.org/project/maven-ai/)
-[![GitHub Stars](https://img.shields.io/github/stars/rwondo/maven?style=social)](https://github.com/rwondo/maven)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-**Production-ready hallucination detection for high-stakes AI applications.**
+MAVEN (Multi-Agent Verification Engine) asks several large language models to review an answer written by another model and flags answers that probably contain made-up facts or sources. It is a prototype I built to learn how far a simple "second opinion" approach gets.
 
----
+## Why
 
-## 🚀 What's New in v1.0
+Language models sometimes state false things with confidence: invented studies, wrong dates, court cases that don't exist. The idea behind MAVEN is to check an answer before trusting it, by asking other models, independently, whether it holds up.
 
-- **Async/Parallel Detection**: 5x faster batch processing with `AsyncHallucinationDetector`
-- **LangChain Integration**: Callback handlers and chain wrappers for seamless integration
-- **LlamaIndex Integration**: Query engine wrappers with automatic hallucination detection
-- **Domain-Specific Detection**: Enhanced prompts for medical, legal, and financial domains
-- **Production Ready**: 107 tests, comprehensive error handling, rate limiting built-in
+The project started as a multi-model *debate* for writing answers: three models took turns proposing an answer, criticising it and merging the views. In early, informal tests on a handful of simple questions the debate did worse than a single model, because the models kept second-guessing correct answers. So I switched to using several models as *reviewers* of an answer instead. The debate code is still in the git history at tag `v0.2.0`.
 
----
+## Demo
 
-## The Problem
+```console
+$ maven --models mock-a,mock-b --answer "Charlotte Bronte wrote it in 1847." "Who wrote Pride and Prejudice?"
+Risk level:     MEDIUM
+Verdicts:       QUESTIONABLE, QUESTIONABLE
+Reliable votes: 0% of reviewer models
+Flags:          none
 
-AI models hallucinate. In high-stakes domains—medical diagnosis, legal analysis, financial decisions—hallucinations can be catastrophic. A fabricated medical study, an invented legal case citation, or a fictional financial regulation could lead to serious harm.
-
-You can't prevent AI from hallucinating. But you **can** detect when it's happening.
-
-## The Solution
-
-**MAVEN** uses multiple AI models to verify responses and flag potential hallucinations. When an AI generates an answer, MAVEN:
-
-1. **Cross-checks consistency** across multiple models
-2. **Verifies facts** using external tools (Wikipedia, calculators)
-3. **Detects suspicious citations** and fabricated sources
-4. **Assigns risk levels**: LOW, MEDIUM, HIGH, or CRITICAL
-
-### Key Finding
-
-**85.3% hallucination detection rate** on TruthfulQA benchmark (100 questions) with **82% overall accuracy**. Better to flag a few good answers than miss dangerous hallucinations.
-
-MAVEN is for **detection, not generation**. Use a single model to generate answers, then use MAVEN to verify them before acting on high-stakes decisions.
-
-## Quick Start
-
-```bash
-pip install maven-ai
+Recommendation: not enough reviewers rated it RELIABLE; verify key claims.
 ```
 
-```python
-from maven import HallucinationDetector
+This run uses the built-in mock models, so it needs no API key. Mock models don't return real verdicts, which is why the result is MEDIUM. It only shows the output format. With an API key set, leave out `--models` to use real models.
 
-# Initialize with 2-3 models for verification
-detector = HallucinationDetector(
-    models=["together/llama-3.1-8b", "together/qwen-2.5-7b", "together/mixtral-8x7b"]
-)
+<!-- Screenshot or GIF of a run with real models goes here. -->
 
-# Check an AI-generated answer for hallucinations
-report = detector.detect(
-    query="What are contraindications for aspirin?",
-    answer="According to the 2023 Johnson Study, aspirin causes...",
-    domain="medical"
-)
+## How it works
 
-print(f"Risk Level: {report.risk_level}")  # LOW, MEDIUM, HIGH, or CRITICAL
-print(f"Confidence: {report.confidence_score}%")
-print(f"Flags: {report.flags}")
-
-# In production: Block or warn on CRITICAL/HIGH risk responses
-if report.risk_level in ["CRITICAL", "HIGH"]:
-    print("WARNING: High risk of hallucination detected!")
+```mermaid
+flowchart LR
+    IN["Question + answer"] --> V1["Model 1: reliability vote"]
+    IN --> V2["Model 2: reliability vote"]
+    IN --> VN["Model N: reliability vote"]
+    IN --> FC["Model 1: fact check"]
+    IN --> CC["Model 2: citation check"]
+    V1 & V2 & VN & FC & CC --> P["Parse labelled fields<br/>VERDICT, FACTS_FAILED, SUSPICIOUS"]
+    P --> S["Scoring rules"]
+    S --> R["Report: risk level, flags,<br/>verdicts, full trace"]
 ```
 
-### Async Batch Processing (v1.0)
+1. **Reliability vote.** Every reviewer model gets the question and the answer and replies `VERDICT: RELIABLE`, `QUESTIONABLE` or `UNRELIABLE`.
+2. **Fact check.** The first model lists claims that are wrong or can't be verified (`FACTS_FAILED:`).
+3. **Citation check.** The second model lists sources that look invented (`SUSPICIOUS:`).
+4. **Parsing.** Replies are plain text, so MAVEN reads the labelled fields with regular expressions. A reply without a verdict counts as QUESTIONABLE.
+5. **Scoring.** Fixed rules turn the results into a risk level:
 
-```python
-from maven import AsyncHallucinationDetector
-import asyncio
+| Risk level | When |
+|---|---|
+| CRITICAL | 2 or more models vote UNRELIABLE, or 2 or more flags |
+| HIGH | any flag: one UNRELIABLE vote, a failed fact check, a suspicious citation, or a failed API call |
+| MEDIUM | fewer than 75% of the models vote RELIABLE |
+| LOW | otherwise |
 
-async def verify_batch():
-    detector = AsyncHallucinationDetector(
-        models=["together/llama-3.1-8b", "together/qwen-2.5-7b", "together/mixtral-8x7b"]
-    )
+The report's `reliable_share` is the percentage of models that voted RELIABLE. It is a vote share, not a calibrated probability.
 
-    # Process multiple items in parallel (5x faster)
-    reports = await detector.detect_batch([
-        {"query": "What is aspirin?", "answer": "Aspirin is..."},
-        {"query": "What is ibuprofen?", "answer": "Ibuprofen is..."},
-        {"query": "What is acetaminophen?", "answer": "Acetaminophen is..."},
-    ], max_concurrent=5)
+Checking one answer with N reviewer models costs N + 2 API calls. `HallucinationDetector` makes them one after another, with a 1-second pause between calls. `AsyncHallucinationDetector` sends them at the same time with `asyncio.gather` and uses a semaphore to cap how many calls are in flight. Temporary API errors such as rate limits are retried up to three times with exponential backoff (via `tenacity`). A missing API key stops the run immediately with a clear error.
 
-    for report in reports:
-        print(f"{report.risk_level}: {report.flags}")
+| File | What it does |
+|---|---|
+| [`src/maven/hallucination_detector.py`](src/maven/hallucination_detector.py) | Prompts, reply parsing, scoring rules, report, sync detector |
+| [`src/maven/async_hallucination_detector.py`](src/maven/async_hallucination_detector.py) | Same checks with concurrent calls |
+| [`src/maven/models.py`](src/maven/models.py), [`async_models.py`](src/maven/async_models.py) | One adapter per provider (Together AI, OpenAI, Anthropic, Google) plus mock models for tests |
+| [`src/maven/cli.py`](src/maven/cli.py) | The `maven` command |
+| [`scripts/evaluate_truthfulqa.py`](scripts/evaluate_truthfulqa.py) | Evaluation on TruthfulQA (see below) |
 
-asyncio.run(verify_batch())
-```
+## Tech stack
 
-### LangChain Integration (v1.0)
+- Python 3.10+ with `asyncio`
+- Provider SDKs: `openai` (also used for Together AI, whose API follows the OpenAI format), `anthropic` and `google-generativeai`
+- `tenacity` for retries
+- pytest and pytest-asyncio for tests; no test calls a real API
+- ruff for linting and formatting, mypy for type checking, pre-commit
+- GitHub Actions CI on Python 3.10 to 3.14, with dependencies pinned in `requirements-dev.lock` (generated with uv)
 
-```python
-from langchain.llms import OpenAI
-from maven.integrations import MAVENCallbackHandler, MAVENChain
+## Getting started
 
-# Option 1: Callback for automatic detection
-handler = MAVENCallbackHandler(
-    models=["together/llama-3.1-8b", "together/qwen-2.5-7b"],
-    auto_block=True  # Raise exception on hallucination
-)
-llm = OpenAI(callbacks=[handler])
+You need Python 3.10 or newer.
 
-# Option 2: Wrap any chain
-from langchain.chains import LLMChain
-safe_chain = MAVENChain(
-    chain=LLMChain(llm=llm, prompt=my_prompt),
-    models=["together/llama-3.1-8b", "together/qwen-2.5-7b"]
-)
-
-result = safe_chain.invoke({"input": "What is aspirin?"})
-if result["is_safe"]:
-    print(result["output"])
-else:
-    print(f"Blocked: {result['risk_level']} risk")
-```
-
-### LlamaIndex Integration (v1.0)
-
-```python
-from llama_index import VectorStoreIndex
-from maven.integrations import MAVENQueryEngine
-
-# Wrap any query engine
-index = VectorStoreIndex.from_documents(documents)
-safe_engine = MAVENQueryEngine(
-    query_engine=index.as_query_engine(),
-    models=["together/llama-3.1-8b", "together/qwen-2.5-7b"],
-    block_on_hallucination=True
-)
-
-response = safe_engine.query("What is machine learning?")
-if response.is_verified:
-    print(response.response)
-```
-
-## How It Works
-
-```
-                         AI Response (To Verify)
-                                   │
-                                   ▼
-                    ┌──────────────────────────────┐
-                    │   HallucinationDetector      │
-                    └──────────────┬───────────────┘
-                                   │
-         ┌─────────────────────────┼─────────────────────────┐
-         │                         │                         │
-         ▼                         ▼                         ▼
-   ┌──────────┐             ┌──────────┐              ┌──────────┐
-   │ Model 1  │             │ Model 2  │              │ Model 3  │
-   │Consistency│             │  Fact    │              │ Citation │
-   │  Check   │             │  Check   │              │  Check   │
-   └────┬─────┘             └────┬─────┘              └────┬─────┘
-        │                        │                         │
-        │  RELIABLE/             │  [Tool Results]         │  SUSPICIOUS/
-        │  QUESTIONABLE          │  Wikipedia/Calc         │  OK
-        │                        │                         │
-        └────────────────────────┼─────────────────────────┘
-                                 │
-                                 ▼
-                    ┌────────────────────────────┐
-                    │    Risk Analysis Engine    │
-                    │  (Flags + Confidence Score)│
-                    └────────────┬───────────────┘
-                                 │
-                                 ▼
-                    ┌────────────────────────────┐
-                    │   HallucinationReport      │
-                    │  CRITICAL/HIGH/MEDIUM/LOW  │
-                    └────────────────────────────┘
-```
-
-### Detection Flow
-
-1. **Consistency Check**: All models independently verify if the answer seems reliable
-2. **Fact Verification**: Models use external tools (Wikipedia, calculator) to check claims
-3. **Citation Analysis**: Models flag suspicious or fabricated sources
-4. **Risk Assessment**: Aggregates findings into overall risk level
-5. **Report**: Returns detailed report with flags, confidence score, and supporting evidence
-
-## Key Features
-
-### 🎯 85.3% Hallucination Detection Rate
-
-Validated on **TruthfulQA benchmark** (100 questions):
-- **81/95 untruthful answers detected** (85.3% detection rate)
-- **4/5 truthful answers correctly passed** (80% specificity)
-- **82% overall accuracy** on the benchmark
-- Zero missed critical hallucinations in high-stakes domains
-
-### ⚠️ Optimized Trade-off
-
-Balanced detection vs false positives:
-- Improved from 38.9% → 85.3% detection by including MEDIUM risk threshold
-- Only 4 false positives out of 100 questions (4% FP rate)
-- **This is intentional**: Better to over-flag than miss a dangerous hallucination
-- In high-stakes domains, false positives are acceptable; false negatives are catastrophic
-
-### 🔍 Multi-Layer Verification
-
-Three independent checks:
-1. **Consistency**: Do multiple models agree the answer is reliable?
-2. **Facts**: Can claims be verified with external tools?
-3. **Citations**: Are sources real or fabricated?
-
-### 📊 Complete Audit Trail
-
-Every detection includes:
-- Specific flags explaining what was detected
-- Model responses showing their reasoning
-- Confidence scores and risk levels
-- Full trace of all verification steps
-
-### 🌐 Multi-Model Support
-
-Works with models from:
-- **Together AI** (Llama, Mixtral, Qwen, DeepSeek) - Recommended
-- **Anthropic** (Claude Opus, Sonnet)
-- **OpenAI** (GPT-4, GPT-4 Turbo)
-- **Google** (Gemini Pro, Ultra)
-
-## Benchmarks
-
-### TruthfulQA Benchmark Results (v0.3.0)
-
-**Test Configuration:**
-- Models: Llama-3.1-8B + Qwen-2.5-7B + Mixtral-8x7B (Together AI)
-- Dataset: **TruthfulQA** (100 questions from Lin et al., 2021)
-- 95 untruthful answers (designed to elicit hallucinations), 5 truthful answers
-
-| Metric | Value | Description |
-|--------|-------|-------------|
-| **Detection Rate** | 85.3% (81/95) | Untruthful answers correctly flagged |
-| **Specificity** | 80% (4/5) | Truthful answers correctly passed |
-| **Overall Accuracy** | 82% | Total correct classifications |
-| **False Positives** | 4% (4/100) | Truthful answers incorrectly flagged |
-| **False Negatives** | 14.7% (14/95) | Missed hallucinations |
-
-**Risk Level Distribution:**
-| Risk Level | Untruthful (95) | Truthful (5) |
-|------------|-----------------|--------------|
-| CRITICAL | 33 (34.7%) | 0 (0%) |
-| HIGH | 31 (32.6%) | 2 (40%) |
-| MEDIUM | 17 (17.9%) | 2 (40%) |
-| LOW | 14 (14.7%) | 1 (20%) |
-
-**Key Improvements in v0.3.0:**
-- Detection rate improved from 38.9% → 85.3% (+119%)
-- Accuracy improved from 41% → 82% (+100%)
-- Added MEDIUM risk to detection threshold
-- Redesigned risk calculation to be more conservative
-
-### Why Multi-Agent FAILS at Generation
-
-Extensive benchmarking proved multi-agent consensus **degrades** performance on accuracy tasks:
-
-| Protocol | Accuracy | vs Baseline |
-|----------|----------|-------------|
-| Single Model (Baseline) | 100% | — |
-| Consensus (Adversarial Debate) | 33% | -67% ❌ |
-| Verification (Propose-Verify-Judge) | 100% | No gain |
-| Collaborative (Sequential Reasoning) | 67% | -33% ❌ |
-
-**Key Finding:** Multi-agent approaches add complexity without improving answer quality. Use a single strong model for generation.
-
-### When to Use MAVEN
-
-**Recommended For:**
-- ✓ High-stakes domains (medical, legal, financial)
-- ✓ Detecting fabricated citations or fake sources
-- ✓ Verifying AI-generated content before acting on it
-- ✓ Applications where missing a hallucination could cause harm
-
-**Not Recommended For:**
-- ✗ Generating answers (use a single model instead)
-- ✗ Low-stakes queries where over-flagging is problematic
-- ✗ Real-time applications requiring instant verification
-- ✗ Tasks where false positives are costly
-
-> **Bottom Line**: MAVEN excels at **detection**, not generation. Use it as a safety layer to catch dangerous hallucinations before they cause harm.
-
-## Use Cases
-
-### Medical AI Safety
-```python
-# An AI assistant generates medical advice
-ai_answer = ai_model.generate("What are contraindications for aspirin?")
-
-# Verify before showing to patient
-report = detector.detect(
-    query="What are contraindications for aspirin?",
-    answer=ai_answer,
-    domain="medical"
-)
-
-if report.risk_level in ["CRITICAL", "HIGH"]:
-    # Block response and alert human expert
-    log_alert(f"Dangerous hallucination detected: {report.flags}")
-    return "Please consult a healthcare professional."
-```
-
-### Legal Research Verification
-```python
-# Check AI-generated case citations before filing
-report = detector.detect(
-    query="What are precedents for contract breach in California?",
-    answer=ai_response,
-    domain="legal"
-)
-
-# Flag fabricated citations
-if "fabricated" in " ".join(report.flags).lower():
-    print("WARNING: Possible fake case citations detected!")
-    print(f"Suspicious citations: {report.citation_checks}")
-```
-
-### Financial Advisory Safety Layer
-```python
-# Verify AI-generated investment advice
-report = detector.detect(
-    query="Should I invest in bonds during inflation?",
-    answer=ai_advice,
-    domain="financial"
-)
-
-if report.confidence_score < 70:
-    # Require human review before delivery
-    flag_for_review(report)
-```
-
-### Content Moderation
-```python
-# Flag AI-generated content with suspicious claims
-report = detector.detect(
-    query=user_question,
-    answer=ai_generated_content,
-    domain="general"
-)
-
-if "fabricated facts" in " ".join(report.flags).lower():
-    add_warning_label("This response may contain unverified claims")
-```
-
-## Documentation
-
-- [Quick Start Guide](docs/QUICKSTART.md) - Get running in 5 minutes
-- [MCP Integration Guide](docs/MCP_INTEGRATION.md) - Connect external verification tools
-- [Architecture Overview](docs/ARCHITECTURE.md) - System design deep-dive
-- [API Reference](docs/API.md) - Complete API documentation
-
-## Installation
-
-### From PyPI (Recommended)
-```bash
-pip install maven-ai
-```
-
-### From Source
 ```bash
 git clone https://github.com/rwondo/maven.git
 cd maven
+python -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
+pytest
 ```
 
-### Environment Variables
-Set API keys for the models you want to use:
+Try the command without any API key, using the mock models:
+
 ```bash
-export ANTHROPIC_API_KEY="your-key-here"
-export OPENAI_API_KEY="your-key-here"
-export GOOGLE_API_KEY="your-key-here"
-export TOGETHER_API_KEY="your-key-here"  # For Llama, Mistral, Qwen, etc.
+maven --models mock-a,mock-b --answer "Charlotte Bronte wrote it in 1847." "Who wrote Pride and Prejudice?"
 ```
 
-## Configuration
+To use real models, set the API key for your provider (see [`.env.example`](.env.example)). The default reviewers are three Together AI models:
+
+```bash
+export TOGETHER_API_KEY="your-key"       # PowerShell: $env:TOGETHER_API_KEY = "your-key"
+maven --answer "Charlotte Bronte wrote it in 1847." "Who wrote Pride and Prejudice?"
+maven --models together/llama-3.1-8b,gpt-4o --json --answer "..." "..."
+```
+
+Model names are routed by prefix: `together/<alias or full model path>`, `claude-...`, `gpt-...` and `gemini-...`. They are passed to the provider as they are, so use names from your provider's current model list. Exit codes: 0 for LOW or MEDIUM risk, 1 for errors, 2 for invalid arguments, 3 for HIGH or CRITICAL risk.
+
+From Python:
 
 ```python
 from maven import HallucinationDetector
 
-# Basic setup with Together AI models (recommended)
 detector = HallucinationDetector(
-    models=[
-        "together/llama-3.1-8b",
-        "together/qwen-2.5-7b",
-        "together/mixtral-8x7b"
-    ],
-    config={
-        "timeout_seconds": 30,         # Per-check timeout
-        "enable_tools": True,          # Use Wikipedia/calculator for fact-checking
-    }
+    models=["together/llama-3.1-8b", "together/qwen-2.5-7b", "together/mixtral-8x7b"]
 )
-
-# Or use premium models for higher accuracy
-detector = HallucinationDetector(
-    models=[
-        "claude-sonnet-4",
-        "gpt-4",
-        "gemini-pro"
-    ]
+report = detector.detect(
+    query="Who wrote Pride and Prejudice?",
+    answer="Charlotte Bronte wrote it in 1847.",
 )
+print(report.risk_level, report.verdicts, report.flags)
 ```
 
-## Using Together AI Models
+To install the exact dependency versions CI uses: `pip install -r requirements-dev.lock && pip install --no-deps -e .`
 
-Run MAVEN with cost-effective open-source models via [Together AI](https://together.ai):
+## Evaluation
 
-```python
-detector = HallucinationDetector(
-    models=[
-        "together/llama-3.1-8b",      # Fast, good at consistency checks
-        "together/qwen-2.5-7b",        # Strong reasoning
-        "together/mixtral-8x7b",       # Mixture of experts
-    ]
-)
+**There are no validated results yet.**
+
+[`scripts/evaluate_truthfulqa.py`](scripts/evaluate_truthfulqa.py) measures how well the detector separates correct from wrong answers:
+
+- **Data.** [TruthfulQA](https://github.com/sylinrl/TruthfulQA) (Lin et al., 2021) gives each question a best correct answer and a best incorrect answer, written by the dataset authors. The script downloads the file from a fixed commit and samples n questions with a fixed seed.
+- **Labels.** Both answers of every sampled question are checked, so the data is 50% correct and 50% wrong and every label is known in advance.
+- **Metrics.** Catch rate (share of wrong answers flagged), false-alarm rate (share of correct answers flagged) and accuracy, each with a Wilson 95% confidence interval. They are reported for two thresholds (flag MEDIUM or worse, flag HIGH or worse) next to a baseline that flags everything.
+- **Failures.** Answers where an API call failed are left out of the scores and counted separately. Every run writes its full per-answer results to `results/` as JSON.
+
+```bash
+export TOGETHER_API_KEY="your-key"
+python scripts/evaluate_truthfulqa.py --n 100      # 200 answers, about 1,000 API calls with 3 models
 ```
 
-For better detection accuracy, use larger models:
-```python
-detector = HallucinationDetector(
-    models=[
-        "together/llama-3.3-70b",
-        "together/mixtral-8x22b",
-        "together/qwen-2.5-72b",
-    ]
-)
-```
+| Method (n = 100 questions, 200 answers) | Catch rate | False-alarm rate | Accuracy |
+|---|---|---|---|
+| Flag MEDIUM or worse | not run yet | not run yet | not run yet |
+| Flag HIGH or worse | not run yet | not run yet | not run yet |
+| Baseline: flag everything | 100% | 100% | 50% |
 
-## Why Multiple Models?
+Caveat: TruthfulQA's reference answers are short sentences written by people. Real model answers are longer and messier, so results on this data show whether the detector can separate right from wrong at all, not how it performs on real output.
 
-Hallucination detection requires **diverse perspectives**:
+### Withdrawn results
 
-- **Different training data**: Each model has different knowledge blind spots
-- **Cross-verification**: If 2/3 models flag an answer, it's likely problematic
-- **Redundancy**: No single model can detect all hallucinations
+Earlier versions of this README reported an 85.3% hallucination detection rate and 82% accuracy on 100 TruthfulQA questions. Those numbers were wrong, and I have withdrawn them:
 
-**Minimum 2 models required**, but 3+ recommended for:
-- **Tie-breaking**: Resolve disagreements between models
-- **Higher confidence**: More models = stronger signal when all agree
-- **Better coverage**: Each model catches different types of hallucinations
+- A model's answer only counted as truthful if it contained one of TruthfulQA's reference answers word for word, so 95 of the 100 answers were labelled untruthful.
+- On those labels the detector flagged 85% of the "untruthful" answers and 80% of the "truthful" ones, so it was not telling them apart. Flagging every answer would have scored higher (95% accuracy against 82%).
+- The flagging threshold was picked after looking at the results, on the same 100 answers.
 
-## Limitations
+The README also had a table saying multi-agent debate lowered answer accuracy to 33–67%. That came from a handful of questions, can't be reproduced, and has been removed as well. The evaluation script above replaces both.
 
-- **Some over-flagging**: 4% false positive rate - occasionally flags legitimate answers as risky
-- **Not perfect**: 14.7% of hallucinations still missed (always improving)
-- **Latency**: Detection takes 5-15 seconds with 3 models
-- **Cost**: 3x API costs compared to single-model inference
-- **Model availability**: Requires API access to 2-3 different models
-- **Doesn't prevent hallucinations**: Only detects them after they're generated
+## Status and limitations
 
-**Critical Understanding**: MAVEN is a safety net, not a silver bullet. Use it as one layer in a multi-layered approach to AI safety.
+MAVEN is a prototype and has not been evaluated yet (see above).
 
-## Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-Areas where we especially need help:
-- Additional model integrations (Cohere, local models via Ollama)
-- Benchmark dataset expansion
-- Performance optimizations
-- Documentation improvements
-- Real-world use case examples
-
-## Roadmap
-
-### Completed ✅
-
-- [x] **v0.2**: Hallucination detection with 100% critical detection rate
-- [x] **v0.3**: Detection improved from 38.9% → 85.3%
-- [x] **v0.4**: Async/parallel batch processing
-- [x] **v0.5**: Domain-specific detection (medical, legal, financial)
-- [x] **v0.6**: LangChain & LlamaIndex integration
-- [x] **v1.0**: Production-ready release
-
-### Future Plans
-
-- [ ] Local model support via Ollama
-- [ ] Streaming detection for real-time applications
-- [ ] Custom verification rule engine
-- [ ] Pre-trained domain classifiers
-
-## Research & Background
-
-MAVEN's hallucination detection approach is inspired by:
-- **Ensemble methods** in machine learning (diverse models reduce bias)
-- **Cross-validation** in statistics (multiple independent checks)
-- **Peer review** in science (multiple experts verify claims)
-- **Defense in depth** in security (layered verification)
-
-### Key Research Finding
-
-**Multi-agent consensus degrades generation quality** (extensive benchmarks showed 33-67% accuracy vs 100% baseline), but **excels at hallucination detection** (85.3% detection rate, 82% accuracy on TruthfulQA).
-
-This makes sense: multiple models are better at finding flaws than creating correct answers.
+- **No outside evidence.** The reviewers only read the question and the answer. There is no web search or document lookup, and models that share a blind spot will agree with each other.
+- **Text parsing.** Model replies are parsed as text. A model that ignores the requested format counts as QUESTIONABLE.
+- **Vote share, not probability.** `reliable_share` is the percentage of models that voted RELIABLE, not a calibrated probability.
+- **Same prompts everywhere.** Every topic gets the same prompts; there are no domain-specific checks.
+- **Cost and speed.** Each answer costs N + 2 API calls, and the sync detector pauses 1 second between calls.
+- **Model names.** Providers retire models. The default Together AI models and aliases have not been checked against the live API.
+- **Gemini SDK.** Google has ended support for the `google-generativeai` SDK used by the Gemini adapter (it warns about this on import). The adapter should move to `google-genai`.
+- **PyPI.** `maven-ai` 1.0.1 on PyPI is an older version that still makes the withdrawn claims. Install from source to get this version.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Contact
-
-- **Author**: Arber Ferra ([@rwondo](https://github.com/rwondo))
-- **Email**: ferraarber@gmail.com
-- **GitHub Issues**: [Report bugs or request features](https://github.com/rwondo/maven/issues)
-- **Discussions**: [Join the conversation](https://github.com/rwondo/maven/discussions)
-
----
-
-<p align="center">
-  <i>Catch dangerous AI hallucinations before they cause harm.</i>
-</p>
+MIT, see [LICENSE](LICENSE). Author: Arber Ferra ([@rwondo](https://github.com/rwondo)).

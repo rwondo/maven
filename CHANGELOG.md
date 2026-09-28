@@ -1,147 +1,82 @@
 # Changelog
 
-All notable changes to MAVEN will be documented in this file.
+All notable changes to MAVEN are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - Unreleased
+
+A smaller package that only checks answers, with the claims in the documentation cut back to what the code does.
+
+### Removed
+- The multi-agent debate code: `ConsensusOrchestrator`, `AsyncConsensusOrchestrator`, `VerificationOrchestrator`, `CollaborativeOrchestrator`, the role prompts, the similarity-based consensus scoring, and the calculator, Wikipedia and fact-check tools it used. It remains in git history at tags `v0.2.0` and `v1.0.0`.
+- The MCP client. It never sent the MCP `initialize` handshake, and its documented example server does not exist.
+- The LangChain and LlamaIndex wrappers. The LangChain callback handler crashed with a real `langchain-core` install.
+- `DOMAIN_PROMPTS` and the `domain` argument (the prompts never used them), the `config` and `mcp_servers` arguments, `logic_checks`, `consistency_score` and `get_trace()`.
+- The `docs/` folder, now covered by the README.
+- Support for Python 3.9.
+
+### Changed
+- `confidence_score` is renamed `reliable_share`, since it is the share of models that voted RELIABLE. Reports now include each model's verdict.
+- The CLI only runs detection: `maven --answer "..." "question"`. HIGH or CRITICAL risk returns exit code 3; the default reviewers are Together AI models.
+- Dependencies have version ranges, dev tools are pinned in `requirements-dev.lock`, and ruff replaces black.
+- Development status is Alpha.
+
+### Fixed
+- A missing API key was retried for about 18 seconds and then reported as MEDIUM risk. It now raises `ModelConfigError` immediately.
+- Failed model calls counted as QUESTIONABLE votes. They now add a flag, so the result is at least HIGH risk.
+- `AsyncHallucinationDetector.detect_batch()` mixed trace steps between concurrent runs.
+- Verdicts in markdown (`**VERDICT:**`) or lower case were read as QUESTIONABLE, and "None identified" or "N/A" counted as findings.
+- `maven --version` printed 1.0.0 for version 1.0.1.
+
+### Added
+- `scripts/evaluate_truthfulqa.py`, a balanced evaluation with confidence intervals and a flag-everything baseline.
+
+### Corrections
+- The TruthfulQA results in earlier releases (85.3% detection rate, 82% accuracy, "4% false positives") are withdrawn. Answers were labelled by exact substring matching, which marked 95 of 100 answers as untruthful, and the threshold was tuned on the same data. See the README for details.
+- Also withdrawn: the claim that multi-agent debate lowered accuracy to 33–67% (a handful of questions, not reproducible), "100% critical hallucination detection" (2 of 2 hand-written examples), "5x faster" batch processing (never measured) and the "production-ready" label.
+
+## [1.0.1] - 2026-02-01
+
+### Changed
+- Package published to PyPI as `maven-ai`; README and acronym wording updated.
 
 ## [1.0.0] - 2026-02-01
 
-### 🎉 Production-Ready Release
-
-MAVEN is now production-ready with comprehensive features for hallucination detection in high-stakes AI applications.
-
 ### Added
-- **Async Hallucination Detection**: New `AsyncHallucinationDetector` class for parallel processing
-  - 5x faster batch processing with concurrency control
-  - `detect_batch()` with configurable `max_concurrent` parameter
-  - Async `is_hallucination()` for quick checks
-  - Progress callbacks for batch operations
-
-- **LangChain Integration**: Seamless integration with LangChain framework
-  - `MAVENCallbackHandler`: Automatic detection on LLM outputs
-  - `MAVENChain`: Chain wrapper with safety metadata
-  - `MAVENRetriever`: Retriever wrapper with document verification
-  - `auto_block` option to raise exceptions on hallucination detection
-  - `HallucinationError` exception class for blocked responses
-
-- **LlamaIndex Integration**: Native support for LlamaIndex
-  - `MAVENQueryEngine`: Query engine wrapper with verification
-  - `MAVENResponseEvaluator`: Standalone response evaluation
-  - `MAVENResponse`: Response wrapper with verification status
-  - `block_on_hallucination` option for query engines
-
-- **Convenience Factory Functions**:
-  - `create_langchain_callback()` for quick callback setup
-  - `wrap_langchain_chain()` for chain wrapping
-  - `wrap_llamaindex_engine()` for query engine wrapping
-
-- **New Package Exports**:
-  - `DOMAIN_PROMPTS` dict for domain-specific prompts
-  - `HallucinationCheckResult` dataclass for integration results
-  - All integration classes available via `from maven.integrations import ...`
-
-### Changed
-- **Version**: Bumped to 1.0.0 (production-ready)
-- **Status**: Changed from "Beta" to "Production/Stable"
-- **Keywords**: Added "langchain", "llamaindex", "mcp" to package keywords
-- **Test Suite**: Expanded from 71 to 107 tests
-- **Documentation**: Updated README with v1.0 features and examples
-
-### Technical Details
-- New files:
-  - `src/maven/async_hallucination_detector.py`
-  - `src/maven/integrations.py`
-  - `tests/test_async_hallucination.py`
-  - `tests/test_integrations.py`
-- Optional dependencies for frameworks:
-  - `pip install maven-ai[langchain]`
-  - `pip install maven-ai[llamaindex]`
-  - `pip install maven-ai[all]`
+- `AsyncHallucinationDetector` with `detect_batch()`, a concurrency limit and progress callbacks.
+- LangChain and LlamaIndex wrappers (removed in 2.0.0).
 
 ## [0.3.0] - 2026-02-01
 
 ### Added
-- **Batch Detection**: New `detect_batch()` method for processing multiple query-answer pairs
-- **Quick Check**: New `is_hallucination()` method for simple true/false detection
-- **Domain-Specific Prompts**: Added specialized verification for medical, legal, and financial domains
-- **Rate Limiting**: Built-in rate limiting to prevent API throttling (configurable delay)
-- **CLI Hallucination Mode**: New `--detect` flag for command-line hallucination detection
-- **Progress Callbacks**: Support for progress tracking in batch detection
+- `detect_batch()` and `is_hallucination()` on `HallucinationDetector`.
+- Rate limiting between API calls.
+- `--detect` mode in the CLI.
+- Domain prompt definitions (never used by the detector; removed in 2.0.0).
 
 ### Changed
-- **MAJOR IMPROVEMENT**: Detection rate improved from 38.9% to 85.3% on TruthfulQA benchmark
-- **MAJOR IMPROVEMENT**: Overall accuracy improved from 41% to 82%
-- **MAJOR IMPROVEMENT**: False positive rate reduced from 50% to 4%
-- Added MEDIUM risk level to detection threshold (key to improved detection)
-- Redesigned risk calculation to be flag-based and more conservative
-- Improved calculator tool security using AST-based evaluation (removed unsafe `eval()`)
-- Updated prompts to be more focused on factual accuracy
+- MEDIUM risk added to the default flagging threshold, and the risk rules redesigned around flags.
+- The calculator tool evaluates expressions through the AST instead of `eval()`.
 
 ### Fixed
-- Security vulnerability in calculator tool (was using `eval()`)
-- Version mismatch between `__init__.py` and `pyproject.toml`
-- Test failures related to updated prompt content
-
-### Technical Details
-- TruthfulQA Benchmark (100 questions):
-  - Before: 37/95 detected (38.9%), 58 missed, 1 false positive
-  - After: 81/95 detected (85.3%), 14 missed, 4 false positives
-  - Net improvement: +44 correctly detected hallucinations
+- Version mismatch between `__init__.py` and `pyproject.toml`.
 
 ## [0.2.0] - 2026-02-01
 
 ### Added
-- **NEW PRIMARY FEATURE**: `HallucinationDetector` class for detecting AI hallucinations
-  - 100% detection rate for critical hallucinations (fabricated studies, fake citations)
-  - Multi-layer verification: consistency, fact-checking, citation analysis
-  - Risk level scoring: LOW, MEDIUM, HIGH, CRITICAL
-  - Detailed `HallucinationReport` with flags, confidence scores, and evidence
-- Tool integration system for fact verification
-  - Wikipedia search for factual claims
-  - Calculator for numerical verification
-  - Fact-check utilities
-- `example_hallucination_detection.py` with 6 real-world test cases
+- `HallucinationDetector`: reliability votes, a fact check and a citation check, turned into a LOW/MEDIUM/HIGH/CRITICAL risk level with a report.
 
 ### Changed
-- **BREAKING**: Primary API changed from `ConsensusOrchestrator` to `HallucinationDetector`
-- **BREAKING**: Package focus shifted from answer generation to hallucination detection
-- Updated README with hallucination detection focus and actual benchmark results
-- Marked multi-agent generation protocols as experimental (proven to degrade performance)
-- Updated __init__.py to export `HallucinationDetector` as primary interface
+- The project's focus moved from generating answers with a multi-model debate to checking answers with several models.
 
 ### Deprecated
-- `ConsensusOrchestrator` for answer generation (multi-agent consensus degrades accuracy)
-- `VerificationOrchestrator` (matches baseline, adds complexity without benefit)
-- `CollaborativeOrchestrator` (67% accuracy vs 100% baseline)
-
-### Removed
-- Experimental test files and benchmarking scripts
-- Outdated documentation focused on consensus-based answer generation
-- Files: `IMPROVEMENTS.md`, `VERIFICATION_PROTOCOL.md`, `EVALUATION_FIXES.md`, `AGENTS.md`
-- Test files: `test_tool_integration.py`, `test_verification_protocol.py`, `test_collaborative.py`
-- Benchmark scripts: `run_standard_benchmarks.py`, `run_reasoning_benchmark.py`, etc.
-
-### Research Findings
-- **Multi-agent consensus FAILS at generation**: 33-67% accuracy vs 100% single-model baseline
-- **Multi-agent EXCELS at detection**: 100% critical hallucination detection rate
-- Key insight: Multiple models better at finding flaws than creating correct answers
-- Benchmark data: Consensus (33%), Verification (100% but no gain), Collaborative (67%)
-
-### Fixed
-- False negative rate for critical hallucinations: 0% (perfect detection)
-- Over-flagging of legitimate answers: Intentional safety trade-off (50% false positives acceptable)
+- `ConsensusOrchestrator`, `VerificationOrchestrator` and `CollaborativeOrchestrator`.
 
 ## [0.1.0] - 2026-01-31
 
 ### Added
-- Initial beta release
-- `ConsensusOrchestrator` class for multi-model verification
-- Support for Anthropic Claude, OpenAI GPT, and Google Gemini
-- Role assignment and rotation system
-- Consensus detection with configurable thresholds
-- Logic trace generation for audit trails
-- Basic test suite
-- Documentation and examples
+- `ConsensusOrchestrator`: three models take the roles of architect, skeptic and mediator and debate an answer over several rounds, with role rotation and a consensus check.
+- Adapters for Anthropic, OpenAI, Google and Together AI models.
+- Traces of every model call.
